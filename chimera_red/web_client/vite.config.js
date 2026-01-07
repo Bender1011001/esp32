@@ -8,7 +8,7 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'autoUpdate',
-            includeAssets: ['vite.svg'],
+            // includeAssets: ['vite.svg'], // File missing, causing build error
             manifest: {
                 name: 'Chimera Red Options',
                 short_name: 'Chimera',
@@ -16,18 +16,7 @@ export default defineConfig({
                 theme_color: '#050505',
                 background_color: '#050505',
                 display: 'standalone',
-                icons: [
-                    {
-                        src: 'vite.svg',
-                        sizes: '192x192',
-                        type: 'image/svg+xml'
-                    },
-                    {
-                        src: 'vite.svg',
-                        sizes: '512x512',
-                        type: 'image/svg+xml'
-                    }
-                ]
+                // Icons removed to pass build without assets
             }
         })
     ],

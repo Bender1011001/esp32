@@ -12,22 +12,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Enterprise Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install PlatformIO
         run: |
-          python -m pip install --upgrade pip
           pip install platformio
+          pio --version
 
-      - name: Run PlatformIO
+      - name: Build Firmware
         run: |
           cd chimera_red/firmware
-          pio run
+          # Install deps first
+          pio pkg install
+          # Run build with verbose output to catch errors
+          pio run -v
+
+      - name: List Build Output
+        if: always()
+        run: ls -R chimera_red/firmware/.pio/build/
 
       - name: Upload Firmware Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: chimera_red_firmware_v0.1
