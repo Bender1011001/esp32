@@ -280,7 +280,7 @@ function App() {
         <div className="app-container">
             <header className="glass">
                 <div className="logo">
-                    <h1>CHIMERA<span style={{ color: '#fff' }}>RED</span></h1>
+                    <h1>CHIMERA<span style={{ color: '#fff' }}>RED</span> <span style={{ fontSize: '0.4em', color: '#666' }}>v1.1</span></h1>
                 </div>
                 <div className="controls">
                     {!connected ? (
