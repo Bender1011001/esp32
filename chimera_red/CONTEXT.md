@@ -29,6 +29,8 @@ Create a powerful red teaming system combining an **ESP32-S3** (Radio capabiliti
 -   **Deauth/Handshake Capture**: (Coming soon) Automate WPA2 handshake collection.
 -   **BLE Spam**: (Coming soon) Broadcast spoofed advertisements.
 -   **WiFi Sensing (CSI Radar)**: Use Multipath distortion to detect physical motion/presence (Through-wall sensing).
+-   **Wigle Intelligence**: Query wigle.net for nearby network intelligence using current GPS location.
+-   **Single Device Tracking**: Lock onto a specific WiFi or BLE MAC address and visualize RSSI trends for physical triangulation.
 
 
 

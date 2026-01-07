@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Wifi, Bluetooth, Activity, Zap, ShieldAlert, Cpu } from 'lucide-react';
+import { Terminal, Wifi, Bluetooth, Activity, Zap, ShieldAlert, Cpu, Globe, Search, Target, X } from 'lucide-react';
 
 function App() {
     const [port, setPort] = useState(null);
@@ -14,6 +14,10 @@ function App() {
     const [sessionLog, setSessionLog] = useState([]);
     const [activeTab, setActiveTab] = useState('dashboard');
     const [sysInfo, setSysInfo] = useState(null);
+    const [wigleToken, setWigleToken] = useState(localStorage.getItem('wigleToken') || '');
+    const [wigleResults, setWigleResults] = useState([]);
+    const [wigleStatus, setWigleStatus] = useState('');
+    const [trackedDevice, setTrackedDevice] = useState(null); // { id: 'mac', type: 'wifi'|'ble', rssi: -90, history: [rssi, rssi], lastSeen: date }
 
 
     const writerRef = useRef(null);
@@ -105,6 +109,15 @@ function App() {
         if (data.type === 'wifi_scan_result') {
             const nets = data.networks || [];
             setNetworks(nets);
+
+            // Tracker Logic for WiFi
+            if (trackedDevice && trackedDevice.type === 'wifi') {
+                const target = nets.find(n => n.bssid === trackedDevice.id || n.ssid === trackedDevice.id);
+                if (target) {
+                    updateTrackedRSS(target.rssi);
+                }
+            }
+
             addLog(`Found ${data.count} Wi-Fi networks`);
 
             // Wardrive Log logic
@@ -114,7 +127,17 @@ function App() {
                 addLog(`Logged ${nets.length} nets with GPS`);
             }
         } else if (data.type === 'ble_scan_result') {
-            setBleDevices(data.devices || []);
+            const devs = data.devices || [];
+            setBleDevices(devs);
+
+            // Tracker Logic for BLE
+            if (trackedDevice && trackedDevice.type === 'ble') {
+                const target = devs.find(d => d.address === trackedDevice.id);
+                if (target) {
+                    updateTrackedRSS(target.rssi);
+                }
+            }
+
             addLog(`Found ${data.count} BLE devices`);
         } else if (data.type === 'spectrum_result') {
             setSpectrum(data.data || []);
@@ -128,6 +151,40 @@ function App() {
         } else if (data.msg) {
             addLog(data.msg);
         }
+    };
+
+    const startTracking = (device, type) => {
+        // ID: BSSID for wifi, Address for BLE
+        const id = type === 'wifi' ? (device.bssid || device.ssid) : device.address;
+        const name = type === 'wifi' ? (device.ssid || 'Hidden') : (device.name || 'Unknown');
+        setTrackedDevice({
+            id,
+            name,
+            type,
+            rssi: -100,
+            history: new Array(20).fill(-100),
+            lastSeen: new Date()
+        });
+        setActiveTab('dashboard'); // Switch to dash to see tracker
+        addLog(`TRACKING: ${name} (${id})`);
+    };
+
+    const stopTracking = () => {
+        setTrackedDevice(null);
+        addLog("Tracking Stopped");
+    };
+
+    const updateTrackedRSS = (rssi) => {
+        setTrackedDevice(prev => {
+            if (!prev) return null;
+            const newHistory = [...prev.history, rssi].slice(-50); // Keep last 50 points
+            return {
+                ...prev,
+                rssi,
+                history: newHistory,
+                lastSeen: new Date()
+            };
+        });
     };
 
     const toggleWardrive = () => {
@@ -158,6 +215,67 @@ function App() {
         }
     };
 
+    const searchWigle = async () => {
+        if (!wigleToken) {
+            alert("Please enter your Wigle API Token (Encoded) from wigle.net/account");
+            return;
+        }
+
+        setWigleStatus('Getting GPS...');
+
+        const performSearch = async (latitude, longitude) => {
+            setWigleStatus('Querying Wigle...');
+            try {
+                // Save token
+                localStorage.setItem('wigleToken', wigleToken);
+
+                // bounding box approx 1km
+                const var_deg = 0.01;
+                const latrange1 = latitude - var_deg;
+                const latrange2 = latitude + var_deg;
+                const longrange1 = longitude - var_deg;
+                const longrange2 = longitude + var_deg;
+
+                const query = `?latrange1=${latrange1}&latrange2=${latrange2}&longrange1=${longrange1}&longrange2=${longrange2}`;
+
+                const res = await fetch(`https://api.wigle.net/api/v2/network/search${query}`, {
+                    headers: {
+                        'Authorization': `Basic ${wigleToken}`,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!res.ok) {
+                    if (res.status === 401) throw new Error("Unauthorized - Check Token");
+                    throw new Error(`API Error: ${res.status}`);
+                }
+
+                const data = await res.json();
+                if (data.success && data.results) {
+                    setWigleResults(data.results);
+                    setWigleStatus(`Found ${data.results.length} networks nearby.`);
+                    addLog(`Wigle: Found ${data.results.length} nets.`);
+                } else {
+                    setWigleStatus('No results or API error: ' + (data.message || 'Unknown'));
+                }
+
+            } catch (err) {
+                console.error(err);
+                setWigleStatus('Error: ' + err.message);
+                addLog('Wigle Error: ' + err.message);
+            }
+        };
+
+        if (gps) {
+            performSearch(gps.latitude, gps.longitude);
+        } else {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => performSearch(pos.coords.latitude, pos.coords.longitude),
+                (err) => setWigleStatus("GPS Error: " + err.message)
+            );
+        }
+    };
+
     return (
         <div className="app-container">
             <header className="glass">
@@ -177,12 +295,50 @@ function App() {
                 <button className={`btn ${activeTab === 'dashboard' ? '' : 'btn-secondary'}`} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
                 <button className={`btn ${activeTab === 'wifi' ? '' : 'btn-secondary'}`} onClick={() => setActiveTab('wifi')}>Wi-Fi</button>
                 <button className={`btn ${activeTab === 'ble' ? '' : 'btn-secondary'}`} onClick={() => setActiveTab('ble')}>BLE</button>
+                <button className={`btn ${activeTab === 'wigle' ? '' : 'btn-secondary'}`} onClick={() => setActiveTab('wigle')}>Wigle</button>
                 <button className={`btn ${activeTab === 'terminal' ? '' : 'btn-secondary'}`} onClick={() => setActiveTab('terminal')}>Terminal</button>
             </div>
 
             <main>
                 {activeTab === 'dashboard' && (
                     <>
+                        {/* Tracking Overlay */}
+                        {trackedDevice && (
+                            <div className="card glass" style={{ borderColor: 'var(--primary)', boxShadow: '0 0 20px rgba(255, 0, 0, 0.2)' }}>
+                                <div className="status-bar">
+                                    <h2 style={{ color: 'var(--primary)' }}><Target className="blink" size={24} /> TARGET LOCKED</h2>
+                                    <button className="btn btn-secondary" onClick={stopTracking}><X size={16} /></button>
+                                </div>
+                                <div style={{ textAlign: 'center', margin: '20px 0' }}>
+                                    <h3 style={{ fontSize: '1.2em' }}>{trackedDevice.name}</h3>
+                                    <div style={{ fontSize: '0.8em', color: '#888', marginBottom: '10px' }}>{trackedDevice.id}</div>
+
+                                    <div style={{ fontSize: '3em', fontWeight: 'bold', color: trackedDevice.rssi > -60 ? '#0f0' : (trackedDevice.rssi > -80 ? '#fa0' : '#f00') }}>
+                                        {trackedDevice.rssi} <span style={{ fontSize: '0.4em', color: '#aaa' }}>dBm</span>
+                                    </div>
+                                    <div style={{ height: '10px', background: '#333', borderRadius: '5px', marginTop: '10px', overflow: 'hidden' }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${Math.min(100, Math.max(0, (trackedDevice.rssi + 100) * 2))}%`, // Map -100..-50 to 0..100%
+                                            background: trackedDevice.rssi > -60 ? '#0f0' : (trackedDevice.rssi > -80 ? '#fa0' : '#f00'),
+                                            transition: 'width 0.2s'
+                                        }} />
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'flex-end', height: '60px', gap: '2px' }}>
+                                    {trackedDevice.history.map((val, i) => (
+                                        <div key={i} style={{
+                                            flex: 1,
+                                            background: 'var(--primary)',
+                                            opacity: 0.5,
+                                            height: `${Math.max(5, (val + 100) * 2)}%`,
+                                            borderRadius: '2px 2px 0 0'
+                                        }} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="card glass">
                             <h2><Activity size={20} /> System Status</h2>
                             <div className="status-grid">
@@ -227,6 +383,9 @@ function App() {
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <span className="badge">{net.rssi} dBm</span>
+                                        <button className="btn btn-secondary" style={{ padding: '5px' }} onClick={() => startTracking(net, 'wifi')}>
+                                            <Target size={16} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -249,8 +408,68 @@ function App() {
                                         <span style={{ fontSize: '0.8em', color: '#888' }}>{dev.address}</span>
                                     </div>
                                     <span className="badge">{dev.rssi} dBm</span>
+                                    <button className="btn btn-secondary" style={{ padding: '5px', marginLeft: '10px' }} onClick={() => startTracking(dev, 'ble')}>
+                                        <Target size={16} />
+                                    </button>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'wigle' && (
+                    <div className="card glass">
+                        <div className="status-bar">
+                            <h2><Globe size={20} /> Wigle Intelligence</h2>
+                        </div>
+
+                        <div style={{ marginBottom: '20px', padding: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em', color: '#aaa' }}>
+                                Wigle API Token (Encoded)
+                                <a href="https://wigle.net/account" target="_blank" rel="noreferrer" style={{ marginLeft: '10px', color: 'var(--primary)' }}>Get Token</a>
+                            </label>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <input
+                                    type="password"
+                                    value={wigleToken}
+                                    onChange={(e) => setWigleToken(e.target.value)}
+                                    placeholder="e.g. YOUR_ENCODED_TOKEN_HERE"
+                                    style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #444', background: '#222', color: '#fff' }}
+                                />
+                                <button className="btn" onClick={searchWigle} disabled={wigleStatus.startsWith('Querying') || wigleStatus.startsWith('Getting')}>
+                                    <Search size={16} style={{ marginRight: '5px' }} /> Search Area
+                                </button>
+                            </div>
+                            {wigleStatus && <div style={{ marginTop: '10px', color: wigleStatus.includes('Error') ? '#f55' : '#0f0' }}>{wigleStatus}</div>}
+                        </div>
+
+                        <div className="list-container">
+                            {wigleResults.map((net, i) => (
+                                <div key={i} className="list-item">
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <strong style={{ color: '#fff' }}>{net.ssid || '<Hidden>'}</strong>
+                                        <div style={{ fontSize: '0.8em', color: '#888' }}>
+                                            <span>{net.netid}</span>
+                                            <span style={{ margin: '0 8px' }}>|</span>
+                                            <span>{net.encryption}</span>
+                                            <span style={{ margin: '0 8px' }}>|</span>
+                                            <span>Type: {net.type}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div className="badge">{new Date(net.lastupdt).toLocaleDateString()}</div>
+                                        <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px' }}>Last Seen</div>
+                                        <button className="btn btn-secondary" style={{ padding: '5px', marginTop: '5px' }} onClick={() => startTracking({ ssid: net.ssid, bssid: net.netid }, 'wifi')}>
+                                            <Target size={14} style={{ marginRight: '4px' }} /> Track
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {wigleResults.length === 0 && !wigleStatus && (
+                                <p style={{ textAlign: 'center', color: '#555', padding: '20px' }}>
+                                    Enter token and search to find nearby intelligence.
+                                </p>
+                            )}
                         </div>
                     </div>
                 )}
@@ -289,7 +508,7 @@ function App() {
                                 </div>
                             ))}
                             <div style={{ position: 'absolute', bottom: 10, left: 10, color: '#0f0', fontSize: '0.8em', background: 'rgba(0,0,0,0.5)', padding: '4px' }}>
-                        Subcarriers (Frequency Domain) ->
+                                Subcarriers (Frequency Domain) &rarr;
                             </div>
                         </div>
                         <p style={{ fontSize: '0.8em', color: '#aaa', marginTop: '10px' }}>
