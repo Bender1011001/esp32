@@ -8,15 +8,26 @@ export default defineConfig({
         react(),
         VitePWA({
             registerType: 'autoUpdate',
-            // includeAssets: ['vite.svg'], // File missing, causing build error
+            includeAssets: ['vite.svg'],
             manifest: {
-                name: 'Chimera Red Options',
+                name: 'Chimera Red',
                 short_name: 'Chimera',
                 description: 'ESP32-S3 + S24 Red Teaming Suite',
                 theme_color: '#050505',
                 background_color: '#050505',
                 display: 'standalone',
-                // Icons removed to pass build without assets
+                icons: [
+                    {
+                        src: 'vite.svg',
+                        sizes: '192x192',
+                        type: 'image/svg+xml'
+                    },
+                    {
+                        src: 'vite.svg',
+                        sizes: '512x512',
+                        type: 'image/svg+xml'
+                    }
+                ]
             }
         })
     ],
