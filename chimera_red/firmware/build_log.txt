@@ -1,0 +1,33 @@
+Processing esp32-s3-devkitc-1 (platform: espressif32; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (6.12.0) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.40900.250804 (4.9.0) 
+ - toolchain-riscv32-esp @ 8.4.0+2021r2-patch5 
+ - toolchain-xtensa-esp32s3 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 33 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- ESP32 BLE Arduino @ 2.0.0
+|-- WiFi @ 2.0.0
+Building in release mode
+Compiling .pio\build\esp32-s3-devkitc-1\src\main.cpp.o
+src/main.cpp: In function 'void enableCSI(bool)':
+src/main.cpp:102:27: error: 'struct wifi_csi_config_t' has no member named 'manu_scale_en'; did you mean 'manu_scale'?
+         configuration_csi.manu_scale_en = 0;
+                           ^~~~~~~~~~~~~
+                           manu_scale
+src/main.cpp:103:27: error: 'struct wifi_csi_config_t' has no member named 'shift_en'; did you mean 'shift'?
+         configuration_csi.shift_en = 0;
+                           ^~~~~~~~
+                           shift
+Compiling .pio\build\esp32-s3-devkitc-1\FrameworkArduino\esp32-hal-misc.c.o
+*** [.pio\build\esp32-s3-devkitc-1\src\main.cpp.o] Error 1
+========================== [FAILED] Took 2.85 seconds ==========================
