@@ -5,6 +5,8 @@
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
 
+#include <math.h>
+
 // Global objects
 BLEScan* pBLEScan;
 bool scanning = false;
@@ -58,7 +60,6 @@ bool csiEnabled = false;
 void _csi_cb(void *ctx, wifi_csi_info_t *data) {
     if (!csiEnabled) return;
     
-    wifi_csi_defines_t *csi_raw = (wifi_csi_defines_t *)data->buf;
     // We only care about 40/80 bytes of sub-carrier data usually, depending on mode.
     // ESP32-S3 usually gives 64 subcarriers for HT20.
     
@@ -98,8 +99,8 @@ void enableCSI(bool en) {
         configuration_csi.stbc_htltf2_en = 1;
         configuration_csi.ltf_merge_en = 1;
         configuration_csi.channel_filter_en = 0;
-        configuration_csi.manu_scale_en = 0;
-        configuration_csi.shift_en = 0;
+        configuration_csi.manu_scale = 0;
+        configuration_csi.shift = 0;
         
         esp_wifi_set_csi_config(&configuration_csi);
         esp_wifi_set_csi_rx_cb(&_csi_cb, NULL);
