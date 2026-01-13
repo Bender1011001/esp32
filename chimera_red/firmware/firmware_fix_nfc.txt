@@ -1,0 +1,68 @@
+Processing esp32-s3-devkitc-1 (platform: espressif32; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (6.12.0) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.40900.250804 (4.9.0) 
+ - toolchain-riscv32-esp @ 8.4.0+2021r2-patch5 
+ - toolchain-xtensa-esp32s3 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 37 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- SmartRC-CC1101-Driver-Lib @ 2.5.7
+|-- TFT_eSPI @ 2.5.43
+|-- Adafruit PN532 @ 1.3.4
+|-- ESP32 BLE Arduino @ 2.0.0
+|-- SPI @ 2.0.0
+|-- WiFi @ 2.0.0
+|-- Wire @ 2.0.0
+Building in release mode
+Compiling .pio\build\esp32-s3-devkitc-1\src\main.cpp.o
+In file included from src/main.cpp:12:
+.pio/libdeps/esp32-s3-devkitc-1/TFT_eSPI/TFT_eSPI.h:973:8: warning: #warning >>>>------>> TOUCH_CS pin not defined, TFT_eSPI touch functions will not be available! [-Wcpp]
+       #warning >>>>------>> TOUCH_CS pin not defined, TFT_eSPI touch functions will not be available!
+        ^~~~~~~
+src/main.cpp:830:1: error: stray '`' in program
+ ```
+ ^
+src/main.cpp:830:2: error: stray '`' in program
+ ```
+  ^
+src/main.cpp:830:3: error: stray '`' in program
+ ```
+   ^
+src/main.cpp: In function 'void setup()':
+src/main.cpp:259:12: error: redeclaration of 'uint32_t versiondata'
+   uint32_t versiondata = nfc.getFirmwareVersion();
+            ^~~~~~~~~~~
+src/main.cpp:238:12: note: 'uint32_t versiondata' previously declared here
+   uint32_t versiondata = nfc.getFirmwareVersion();
+            ^~~~~~~~~~~
+src/main.cpp: In function 'void emulateNFC()':
+src/main.cpp:812:13: error: 'class Adafruit_PN532' has no member named 'readspicommand'; did you mean 'writecommand'?
+     if (nfc.readspicommand(response, &responseLen)) {
+             ^~~~~~~~~~~~~~
+             writecommand
+src/main.cpp: At global scope:
+src/main.cpp:826:1: error: 'nfc' does not name a type
+ nfc.AsTarget();
+ ^~~
+src/main.cpp:828:9: error: expected constructor, destructor, or type conversion before '(' token
+ logToHUD("NFC: Finished", TFT_WHITE);
+         ^
+src/main.cpp:829:1: error: expected declaration before '}' token
+ }
+ ^
+*** [.pio\build\esp32-s3-devkitc-1\src\main.cpp.o] Error 1
+========================== [FAILED] Took 5.36 seconds ==========================
+
+Environment         Status    Duration
+------------------  --------  ------------
+esp32-s3-devkitc-1  FAILED    00:00:05.364
+==================== 1 failed, 0 succeeded in 00:00:05.364 ====================

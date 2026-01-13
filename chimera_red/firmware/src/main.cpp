@@ -15,9 +15,15 @@
 
 #define PLANET_GREEN 0x4D10 // #4BA383 in RGB565
 
+// NFC Pins (I2C)
+#define PN532_SDA 1
+#define PN532_SCL 2
+#define PN532_IRQ 4 // Host Wake
+#define PN532_RST 5 // Reset
+
 // Global objects
 TFT_eSPI tft = TFT_eSPI();
-Adafruit_PN532 nfc(1, 2); // I2C SDA=1, SCL=2 (Safe Config)
+Adafruit_PN532 nfc(PN532_IRQ, PN532_RST); // Use explict IRQ/RST pins
 BLEScan *pBLEScan;
 bool scanning = false;
 bool cc1101Initialized = false;
@@ -226,6 +232,19 @@ void setup() {
   WiFi.disconnect();
   logToHUD("WiFi Ready");
 
+  // Init NFC
+  Wire.begin(PN532_SDA, PN532_SCL);
+  nfc.begin();
+  uint32_t versiondata = nfc.getFirmwareVersion();
+  if (!versiondata) {
+    logToHUD("NFC Disconnected!", TFT_RED);
+    Serial.println("{\"type\": \"status\", \"msg\": \"NFC Not Found\"}");
+  } else {
+    logToHUD("NFC Ready");
+    nfc.SAMConfig();
+    Serial.println("{\"type\": \"status\", \"msg\": \"NFC Initialized\"}");
+  }
+
   // Init BLE
   BLEDevice::init("Chimera-S3");
   pBLEScan = BLEDevice::getScan();
@@ -233,15 +252,6 @@ void setup() {
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(99);
   logToHUD("BLE Ready (Core 0 Async)");
-
-  // Init NFC
-  Wire.begin(1, 2);
-  nfc.begin();
-  uint32_t versiondata = nfc.getFirmwareVersion();
-  if (versiondata) {
-    logToHUD("NFC PN532 OK", TFT_GREEN);
-  }
-
   Serial.println("{\"status\": \"ready\", \"message\": \"Chimera Red Firmware "
                  "v0.2 (Dual Core) Ready\"}");
 }
@@ -766,20 +776,35 @@ void emulateNFC() {
   // Emulation". For *perfect* cloning, we'd need to write 0x8C with the UID
   // bytes inserted at index 4.
 
-  // Injecting UID into command Buffer (Simplified POC)
+  // Injecting UID into command Buffer
   if (currentUIDLen >= 3) {
     command[4] = currentUID[0];
     command[5] = currentUID[1];
-    command[6] = currentUID[2];
+    command[6] = currentUID[2]; // NFCID1t (First 3 bytes)
   }
 
-  // Send Command Check Ack not exposed?
-  // Fallback: Use standard target, which is better than nothing for the demo.
-  // Real implementation requires direct `wire.write` or `spi.write` which is
-  // messy here without low level access.
+  // 1. Send the raw Low-Level Command to init as Target with OUR UID
+  if (nfc.sendCommandCheckAck(command, sizeof(command))) {
+    Serial.println("{\"type\": \"status\", \"msg\": \"Target Armed. Waiting "
+                   "for Reader...\"}");
 
-  // Functional Fallback:
-  nfc.AsTarget();
+    // 2. Wait for Initiator (Reader) to select us
+    // We need to poll for response data (command 0x8D response)
+    // This is a blocking read for demonstration, in a real task we'd yield
 
-  logToHUD("NFC: Finished", TFT_WHITE);
+    uint8_t response[64];
+    uint8_t responseLen = sizeof(response);
+
+    // Give the reader some time to tap
+    // The PN532 holds the I2C clock or waits until IRQ?
+    // With Adafruit lib, we can try reading data.
+
+    // 2. We just armed it. In a real polling loop we'd check IRQ.
+    // For this POC, we assume if the command was ACKed, we are in Target mode.
+    logToHUD("Armed with Spoof UID", PLANET_GREEN);
+
+  } else {
+    Serial.println("{\"type\": \"error\", \"msg\": \"Failed to Arm Target\"}");
+    logToHUD("NFC Error", TFT_RED);
+  }
 }

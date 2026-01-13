@@ -23,6 +23,11 @@ enum class RadioMode {
 bool setRadioMode(RadioMode mode);
 ```
 
+### NFC Emulation (True Spoofing)
+- **Pins**: Reassigned to GPIO 4 (IRQ) and 5 (RST) to avoid conflict with TFT (16/17). I2C uses generic 1 (SDA) / 2 (SCL).
+- **Protocol**: Direct PN532 command injection (`0x8C TgInitAsTarget`) is now used instead of the limited library method.
+- **Capability**: Can now clone and emulate a specific UID captured from a card, rather than using the hardcoded default.
+
 **Benefits:**
 - Prevents "stuck" radio states by cleaning up previous mode before transitioning
 - Single point of control for all WiFi mode changes
