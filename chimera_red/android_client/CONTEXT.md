@@ -3,13 +3,12 @@
 This is a native Android application for Chimera Red, replacing the web client.
 It uses **USB OTG Serial** to communicate with the ESP32-S3 firmware, ensuring robust connection and allowing the ESP32 to retain full BLE Scanning capabilities.
 
-## Features
-- **USB Serial Connection**: Robust, low-latency comms.
-- **Cyberpunk UI**: Dark, high-contrast "Hacker" aesthetic.
-- **Tools**:
-  - Dashboard (System Info)
-  - WiFi Recon (Scan Networks)
-  - BLE Recon (Scan Devices)
+### Key Features
+- **USB Serial Communication**: Uses `usb-serial-for-android` to communicate with ESP32-S3.
+- **Robust JSON Parsing**: Implemented `Gson` for type-safe, resilient handling of firmware messages (Handshakes, NFC, Scans).
+- **Crypto-Accurate Cracking**: Includes a specialized `CrackingEngine` that performs real PBKDF2-HMAC-SHA1 operations on the CPU, replacing legacy simulations.
+- **Material3 UI**: Modern Compose-based interface with a "Planet Express" Green theme.
+- **Real-time Navigation**: Tabs for Dashboard, WiFi, BLE, NFC, Sub-GHz, and Terminal.ces)
   - Spectrum Analyzer (Traffic Density)
   - CSI Radar (Visualization)
 

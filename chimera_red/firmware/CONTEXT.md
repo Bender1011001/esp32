@@ -50,15 +50,14 @@ pio run -t upload
 See [WIRING_GUIDE.md](../WIRING_GUIDE.md) for detailed pin mappings (SPI/I2C).
 
 ## Serial Commands
-
+- `SCAN_WIFI`: Returns JSON list of networks.
+- `SCAN_BLE`: Returns JSON list of BLE devices.
+- `SNIFF_START <ch>`: Starts promiscuous mode (monitor + packet injection).
+- `SNIFF_STOP`: Stops sniffing.
+- `CMD_SPECTRUM`: Runs 2.4GHz spectrum sweep.
+- `START_CSI` / `STOP_CSI`: Controls CSI data stream.
 | Command | Description |
 |---------|-------------|
-| `SCAN_WIFI` | Scan for WiFi networks |
-| `SCAN_BLE` | Scan for BLE devices |
-| `SNIFF_START:<ch>` | Start handshake sniffing on channel |
-| `SNIFF_STOP` | Stop sniffing |
-| `CMD_SPECTRUM` | Traffic density scan |
-| `START_CSI` / `STOP_CSI` | CSI radar mode |
 | `DEAUTH:<BSSID>` | Send deauth packets |
 | `BLE_SPAM` | Broadcast fake BLE advertisements |
 | `INIT_CC1101` | Initialize Sub-GHz radio |

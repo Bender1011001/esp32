@@ -1,0 +1,53 @@
+Reusing configuration cache.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+
+> Task :app:compileDebugKotlin
+w: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:85:9 Variable 'status' is never used
+w: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:98:9 Variable 'lastSubGhzLen' is never used
+w: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:103:9 Variable 'scope' is never used
+w: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/utils/CrackingEngine.kt:23:51 Parameter 'targetBssid' is never used
+w: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/utils/CrackingEngine.kt:32:17 Variable 'pmk' is never used
+
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes
+> Task :app:dexBuilderDebug
+> Task :app:mergeProjectDexDebug
+> Task :app:mergeDebugJavaResource
+> Task :app:packageDebug
+> Task :app:assembleDebug
+> Task :app:createDebugApkListingFileRedirect UP-TO-DATE
+
+BUILD SUCCESSFUL in 10s
+32 actionable tasks: 6 executed, 26 up-to-date
+Configuration cache entry reused.

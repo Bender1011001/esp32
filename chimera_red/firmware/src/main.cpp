@@ -552,8 +552,8 @@ void processCommand(String cmd) {
 void scanWiFi() {
   Serial.println("{\"type\": \"status\", \"msg\": \"Scanning WiFi...\"}");
   int n = WiFi.scanNetworks();
-  Serial.println("{\"type\": \"wifi_scan_result\", \"count\": " + String(n) +
-                 ", \"networks\": [");
+  Serial.print("{\"type\": \"wifi_scan_result\", \"count\": " + String(n) +
+               ", \"networks\": [");
   if (n == 0) {
     // No networks found
   } else {
@@ -577,8 +577,8 @@ void scanBLE() {
   BLEScanResults foundDevices = pBLEScan->start(5, false);
   int count = foundDevices.getCount();
 
-  Serial.println("{\"type\": \"ble_scan_result\", \"count\": " + String(count) +
-                 ", \"devices\": [");
+  Serial.print("{\"type\": \"ble_scan_result\", \"count\": " + String(count) +
+               ", \"devices\": [");
   for (int i = 0; i < count; i++) {
     BLEAdvertisedDevice d = foundDevices.getDevice(i);
     Serial.printf("{\"name\": \"%s\", \"address\": \"%s\", \"rssi\": %d}",

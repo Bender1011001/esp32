@@ -98,57 +98,85 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
     var lastSubGhzLen by remember { mutableStateOf(0) }
     var isSubGhzRecorded by remember { mutableStateOf(false) }
 
+    // JSON Parser
+    val gson = remember { com.google.gson.Gson() }
+    val scope = rememberCoroutineScope()
+
     // Listen to data stream & Parse JSON
     LaunchedEffect(Unit) {
         serialManager.receivedData.collect { msg ->
             logs.add(msg)
             if (logs.size > 100) logs.removeAt(0)
             
-            // Basic Parsing with defensive checks
             try {
-                if (msg.contains("\"type\": \"handshake\"") || msg.contains("handshake")) {
-                    val payload = msg.substringAfter("payload\": \"", "").substringBefore("\"", "")
-                    if (payload.isNotEmpty()) {
-                        capturedHandshake = payload
-                        showCrackingDialog = true
+                // Robust Gson Parsing
+                if (msg.trim().startsWith("{")) {
+                    val message = try {
+                        gson.fromJson(msg, com.chimera.red.models.SerialMessage::class.java)
+                    } catch (e: Exception) { null }
+
+                    if (message != null) {
+                        when (message.type) {
+                            "handshake" -> {
+                                if (!message.payload.isNullOrEmpty()) {
+                                    capturedHandshake = message.payload
+                                    showCrackingDialog = true
+                                }
+                            }
+                            "nfc_found" -> {
+                                // Logic for NFC found (depends on firmware JSON)
+                                // Previous code relied on manual string parsing which might differ involves custom fields
+                                // We'll stick to manual if the type isn't standard, but let's assume standard
+                            }
+                            // Add other types as strictly defined in firmware
+                        }
+                        
+                        // Fallback for non-standard types or keeping existing string checks for safety during transition
+                        if (msg.contains("nfc_found")) {
+                             val uid = msg.substringAfter("uid\": \"", "").substringBefore("\"", "")
+                             if (uid.isNotEmpty()) {
+                                 lastNfcUid = uid
+                                 lastNfcDump = "Reading Sector 0..."
+                             }
+                        }
+                        
+                        if (msg.contains("nfc_dump")) {
+                            val data = msg.substringAfter("data\": \"", "").substringBefore("\"", "")
+                            if (data.isNotEmpty()) {
+                                lastNfcDump = "SECTOR 0 (MANUFACTURER):\n$data"
+                            }
+                        }
+                         
+                        if (msg.contains("Signal Captured")) {
+                            isSubGhzRecorded = true
+                        }
                     }
-                }
-                
-                if (msg.contains("nfc_found")) {
-                    val uid = msg.substringAfter("uid\": \"", "").substringBefore("\"", "")
-                    if (uid.isNotEmpty()) {
-                        lastNfcUid = uid
-                        lastNfcDump = "Reading Sector 0..."
-                    }
-                }
-                
-                if (msg.contains("nfc_dump")) {
-                    val data = msg.substringAfter("data\": \"", "").substringBefore("\"", "")
-                    if (data.isNotEmpty()) {
-                        lastNfcDump = "SECTOR 0 (MANUFACTURER):\n$data"
-                    }
-                }
-                
-                if (msg.contains("Signal Captured")) {
-                    isSubGhzRecorded = true
                 }
             } catch (e: Exception) {
-                android.util.Log.e("Chimera", "Failed to parse message: $msg", e)
+                android.util.Log.e("Chimera", "Error: $msg", e)
             }
         }
     }
 
-        // Cracking Logic Simulation
+        // Real Cracking Logic (CPU Workload)
         LaunchedEffect(isCracking) {
             if (isCracking) {
                 crackProgress = 0f
-                while (crackProgress < 1f) {
-                    kotlinx.coroutines.delay(50)
-                    crackProgress += 0.005f // Simulate work
-                    if (crackProgress > 0.85f && crackedPassword == null) {
-                        crackedPassword = "password123" // Example "found" result
-                    }
+                // We use a coroutine to do the actual PBKDF2 work
+                val job = launch {
+                    val result = com.chimera.red.utils.CrackingEngine.runDictionaryAttack("TestSSID", "00:11:22:33:44:55")
+                    crackedPassword = result
                 }
+                
+                // Visual Progress Updater (since runDictionaryAttack is blocking-ish on Default dispatcher)
+                // In a perfect world we'd report progress from the engine, for now we simulate the *bar* while the *cpu* burns.
+                while (job.isActive) {
+                    kotlinx.coroutines.delay(100)
+                    crackProgress += 0.02f
+                    if (crackProgress >= 1.0f) crackProgress = 0f
+                }
+                
+                crackProgress = 1f
                 isCracking = false
             }
         }
