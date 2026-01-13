@@ -1,0 +1,23 @@
+Verbosity level can be increased via `-v, -vv, or -vvv` option
+Collected 1 tests
+
+Processing * in native environment
+--------------------------------------------------------------------------------
+Building...
+'gcc' is not recognized as an internal or external command,
+operable program or batch file.
+'gcc' is not recognized as an internal or external command,
+operable program or batch file.
+*** [.pio\build\native\unity_config_build\unity_config.o] Error 1
+*** [.pio\build\native\test\test_firmware.o] Error 1
+'gcc' is not recognized as an internal or external command,
+operable program or batch file.
+*** [.pio\build\native\lib35a\Unity\unity.o] Error 1
+Building stage has failed, see errors above. Use `pio test -vvv` option to enable verbose output.
+--------------------- native:* [ERRORED] Took 0.68 seconds ---------------------
+
+=================================== SUMMARY ===================================
+Environment    Test    Status    Duration
+-------------  ------  --------  ------------
+native         *       ERRORED   00:00:00.681
+================== 1 test cases: 0 succeeded in 00:00:00.681 ==================

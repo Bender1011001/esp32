@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Espressif USB CDC (ESP32-S3) -->
+    <usb-device vendor-id="12346" product-id="4097" />
+    <!-- CP210x -->
+    <usb-device vendor-id="4292" />
+    <!-- CH340 -->
+    <usb-device vendor-id="6790" />
+    <!-- FTDI -->
+    <usb-device vendor-id="1027" />
+</resources>

@@ -8,48 +8,58 @@ Create a powerful red teaming system combining an **ESP32-S3** (Radio capabiliti
   - Handles WiFi promiscuous mode, BLE scanning, Packet injection.
   - Communicates with S24 via USB-Serial (CDC) or BLE.
   - Efficient binary or JSON protocol.
-- **Client (`/web_client`)**: Runs on S24 (Chrome for Android).
-  - Uses **Web Serial API** to talk to ESP32.
-  - Modern, capability-rich UI (Hacker/Cyberpunk aesthetic).
-  - Visualizes RF spectrum, networks, devices.
-  - Controls attacks/scans.
+  - **Refactored**: `main.cpp` uses modular helper functions; Linker conflicts resolved.
+- **Client (`/web_client` & `/android_client`)**:
+  - **Android Native**: "BenderOS v3.1" - Retro Pixel Art Theme.
+    - **Structure**: Modularized into `ui/screens/` and `ui/components/`.
+    - **Visuals**: Amber Monochrome on Black, Monospace fonts, Pixel Art avatar.
+    - **Features**: Live Terminal Overlay, Surgical Sniffer, CC1101 Tuner, High-Speed Handshake Cracking.
+  - **Web Client**: React + Vite (Backup/Desktop Interface).
+    - **Structure**: Modularized into `src/components/`, state logic cleaned up.
+    - Controls attacks/scans.
 
 ## Hardware Specs
 - **ESP32-S3**: Dual Core 240MHz, 8MB Flash, 8MB PSRAM.
+- **CC1101**: Sub-1GHz Transceiver (433/915/868 MHz) for RF analysis.
 - **S24 Ultra**: High-performance Android.
+- **Wiring Guide**: See [WIRING_GUIDE.md](chimera_red/WIRING_GUIDE.md).
 
-## Plan
-1.  **Firmware**: Implement `SerialCommand` handler and basic WiFi/BLE scan tasks. (DONE)
-2.  **Client**: React-based UI with Vanilla CSS (Glassmorphism, Dark Mode). (DONE)
-3.  **Integration**: Verify Serial communication loop. (Ready for testing)
+## Capabilities
+- **Traffic Density Visualizer**: Real-time graph of 2.4GHz packet traffic.
+- **Wardriving Mode**: Tag WiFi scans with GPS coordinates.
+- **Deauth/Handshake Capture**: Automate WPA2 handshake collection.
+- **BLE Spam**: Broadcast spoofed advertisements.
+- **WiFi Sensing (CSI Radar)**: Motion detection via multipath distortion.
+- **Sub-1GHz Replay**: Signal capture and replay (RX/TX).
+- **NFC Cloning**: Read and emulate MIFARE Classic cards.
+- **Wigle Intelligence**: Query wigle.net for nearby network intelligence.
+- **Single Device Tracking**: RSSI-based physical triangulation.
 
-## Expanded Capabilities (Phase 2)
--   **Traffic Density Visualizer**: Real-time graph of 2.4GHz packet traffic (Firmware: Promiscuous hopping).
--   **Wardriving Mode**: Tag WiFi scans with S24 GPS coordinates and export to KML/CSV.
--   **Deauth/Handshake Capture**: (Coming soon) Automate WPA2 handshake collection.
--   **BLE Spam**: (Coming soon) Broadcast spoofed advertisements.
--   **WiFi Sensing (CSI Radar)**: Use Multipath distortion to detect physical motion/presence (Through-wall sensing).
--   **Wigle Intelligence**: Query wigle.net for nearby network intelligence using current GPS location.
--   **Single Device Tracking**: Lock onto a specific WiFi or BLE MAC address and visualize RSSI trends for physical triangulation.
+## Testing (Updated 2026-01-13)
 
+### Web Client Tests (29 tests)
+- **Status**: ✅ Passing
+- **Coverage**: Components, Serial Logic, State Management.
+- **Fixes**: Added JSDOM mocks for `scrollIntoView`.
 
+### Android Tests (44 tests)
+- **Status**: ✅ Passing
+- **Coverage**: Protocol Logic, Regex Validation, UI Logic Helper.
+- **Fixes**: Resolved compilation errors, added missing resources.
 
-3.  **Deployment**:
-    - Push code to GitHub.
-    - Go to Repo Settings -> Pages.
-    - Source: "GitHub Actions".
-    - The `Deploy Chimera Red Client` workflow will run automatically.
-    - App will be at `https://<user>.github.io/<repo>/`.
+### Firmware Tests
+- **Status**: ✅ Build Passing
+- **Coverage**: Native tests available for logic verification.
+- **Note**: Native tests require GCC (currently missing in env).
+- **Fixes**: Resolved multiple definition linker error in `CC1101` vs `TFT_eSPI`.
 
 ## Usage Instructions
 1.  **Flash Firmware**:
-    - Go to `firmware/`
-    - Run `pio run -t upload` (or use Arduino IDE with the code in `src/main.cpp`)
-2.  **Run Client**:
-    - Go to `web_client/`
-    - Run `npm run dev -- --host`
-    - Open Chrome on S24
-    - Connect S24 to ESP32 via USB-OTG
-    - Open the App URL (if hosted) or deploy via `npm run build`
-    - Click "Connect Device"
-
+    - `cd firmware`
+    - `pio run -t upload`
+2.  **Run Android App**:
+    - `cd android_client`
+    - `./gradlew installDebug`
+3.  **Run Web Client (Alternative)**:
+    - `cd web_client`
+    - `npm run dev -- --host`

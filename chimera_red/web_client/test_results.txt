@@ -1,0 +1,143 @@
+
+ RUN  v4.0.17 C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client
+
+TypeError: logEndRef.current?.scrollIntoView is not a function
+    at C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/components/TerminalView.jsx:8:28
+    at commitHookEffectListMount (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:27078:3)
+    at flushPassiveEffects (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:27023:14)
+    at commitRootImpl (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:26974:5)
+    at commitRoot (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:26721:5)
+stderr | src/__tests__/App.test.jsx > Chimera Red Web Client > Tab Navigation > switches to Terminal tab when clicked
+The above error occurred in the <TerminalView> component:
+
+    at TerminalView (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/components/TerminalView.jsx:8:25)
+    at main
+    at div
+    at App (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/App.jsx:21:61)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+TypeError: logEndRef.current?.scrollIntoView is not a function
+    at C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/components/TerminalView.jsx:8:28
+    at commitHookEffectListMount (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:23189:26)
+    at commitPassiveMountOnFiber (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24970:11)
+    at commitPassiveMountEffects_complete (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24930:9)
+    at commitPassiveMountEffects_begin (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24917:7)
+    at commitPassiveMountEffects (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:24905:3)
+    at flushPassiveEffectsImpl (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:27078:3)
+    at flushPassiveEffects (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:27023:14)
+    at commitRootImpl (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:26974:5)
+    at commitRoot (C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\web_client\node_modules\react-dom\cjs\react-dom.development.js:26721:5)
+stderr | src/__tests__/App.test.jsx > Chimera Red Web Client > Terminal Tab > shows raw command input
+The above error occurred in the <TerminalView> component:
+
+    at TerminalView (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/components/TerminalView.jsx:8:25)
+    at main
+    at div
+    at App (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/App.jsx:21:61)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+stderr | src/__tests__/App.test.jsx > Chimera Red Web Client > Serial Connection > connect button triggers serial connection attempt
+Warning: An update to App inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at App (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/App.jsx:21:61)
+Warning: An update to App inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at App (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/App.jsx:21:61)
+Warning: An update to App inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at App (C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client/src/App.jsx:21:61)
+
+ Γ¥» src/__tests__/App.test.jsx (29 tests | 2 failed) 849ms
+       Γ£ô renders the app header with logo 46ms
+       Γ£ô shows Connect Device button when disconnected 6ms
+       Γ£ô displays all navigation tabs 8ms
+       Γ£ô starts on dashboard tab 5ms
+       Γ£ô switches to Wi-Fi tab when clicked 117ms
+       Γ£ô switches to BLE tab when clicked 61ms
+       Γ£ô switches to CSI Radar tab when clicked 61ms
+       Γ£ô switches to Wigle tab when clicked 64ms
+       ├ù switches to Terminal tab when clicked 39ms
+       Γ£ô shows N/A for device info when not connected 4ms
+       Γ£ô displays Scan Wi-Fi button in Quick Actions 3ms
+       Γ£ô displays Scan BLE button in Quick Actions 3ms
+       Γ£ô displays Refresh Info button 3ms
+       Γ£ô shows empty state message when no networks 21ms
+       Γ£ô displays SCAN button 66ms
+       Γ£ô shows API token input 63ms
+       Γ£ô shows Search Area button 62ms
+       Γ£ô shows Get Token link 61ms
+       ├ù shows raw command input 34ms
+       Γ£ô connect button triggers serial connection attempt 21ms
+       Γ£ô shows START and STOP buttons 53ms
+       Γ£ô shows visualization container 46ms
+     Γ£ô handles wifi scan result data structure 1ms
+     Γ£ô handles ble scan result data structure 0ms
+     Γ£ô handles spectrum result data structure 0ms
+     Γ£ô handles sys_info data structure 0ms
+     Γ£ô handles CSI data structure 0ms
+     Γ£ô RSSI to signal strength mapping 0ms
+     Γ£ô RSSI to percentage mapping 0ms
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 2 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  src/__tests__/App.test.jsx > Chimera Red Web Client > Tab Navigation > switches to Terminal tab when clicked
+ FAIL  src/__tests__/App.test.jsx > Chimera Red Web Client > Terminal Tab > shows raw command input
+TypeError: logEndRef.current?.scrollIntoView is not a function
+ Γ¥» src/components/TerminalView.jsx:8:28
+      6| 
+      7|     useEffect(() => {
+      8|         logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+       |                            ^
+      9|     }, [logs]);
+     10| 
+ Γ¥» commitHookEffectListMount node_modules/react-dom/cjs/react-dom.development.js:23189:26
+ Γ¥» commitPassiveMountOnFiber node_modules/react-dom/cjs/react-dom.development.js:24970:11
+ Γ¥» commitPassiveMountEffects_complete node_modules/react-dom/cjs/react-dom.development.js:24930:9
+ Γ¥» commitPassiveMountEffects_begin node_modules/react-dom/cjs/react-dom.development.js:24917:7
+ Γ¥» commitPassiveMountEffects node_modules/react-dom/cjs/react-dom.development.js:24905:3
+ Γ¥» flushPassiveEffectsImpl node_modules/react-dom/cjs/react-dom.development.js:27078:3
+ Γ¥» flushPassiveEffects node_modules/react-dom/cjs/react-dom.development.js:27023:14
+ Γ¥» commitRootImpl node_modules/react-dom/cjs/react-dom.development.js:26974:5
+ Γ¥» commitRoot node_modules/react-dom/cjs/react-dom.development.js:26721:5
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/2]ΓÄ»
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 27 passed (29)
+   Start at  07:16:33
+   Duration  2.10s (transform 107ms, setup 103ms, import 272ms, tests 849ms, environment 729ms)
+

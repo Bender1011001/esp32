@@ -1,13 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800&display=swap');
 
 :root {
-  --bg-color: #050505;
-  --card-bg: rgba(20, 20, 30, 0.6);
-  --primary: #ff2a6d;
-  --secondary: #05d9e8;
-  --text-main: #e0e0e0;
-  --text-muted: #888;
-  --border: rgba(255, 255, 255, 0.1);
+  --bg-color: #000B00;
+  --card-bg: rgba(10, 20, 15, 0.8);
+  --primary: #4BA383;
+  --secondary: #2E6B5A;
+  --text-main: #E0EBE0;
+  --text-muted: #6A8E7F;
+  --border: rgba(75, 163, 131, 0.3);
   --font-mono: 'JetBrains Mono', monospace;
   --font-sans: 'Inter', sans-serif;
 }
@@ -117,7 +117,7 @@ main {
   font-size: 0.8em;
   height: 200px;
   overflow-y: auto;
-  color: #0f0;
+  color: var(--primary);
 }
 
 .list-item {

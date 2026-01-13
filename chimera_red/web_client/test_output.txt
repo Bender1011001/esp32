@@ -1,0 +1,54 @@
+
+ RUN  v4.0.17 C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/web_client
+
+ Γ¥» src/__tests__/App.test.jsx (29 tests | 1 failed) 841ms
+       Γ£ô renders the app header with logo 48ms
+       Γ£ô shows Connect Device button when disconnected 5ms
+       Γ£ô displays all navigation tabs 7ms
+       Γ£ô starts on dashboard tab 5ms
+       Γ£ô switches to Wi-Fi tab when clicked 107ms
+       Γ£ô switches to BLE tab when clicked 61ms
+       Γ£ô switches to CSI Radar tab when clicked 47ms
+       Γ£ô switches to Wigle tab when clicked 47ms
+       Γ£ô switches to Terminal tab when clicked 62ms
+       Γ£ô shows N/A for device info when not connected 4ms
+       Γ£ô displays Scan Wi-Fi button in Quick Actions 3ms
+       Γ£ô displays Scan BLE button in Quick Actions 4ms
+       Γ£ô displays Refresh Info button 3ms
+       Γ£ô shows empty state message when no networks 62ms
+       Γ£ô displays SCAN button 62ms
+       Γ£ô shows API token input 47ms
+       Γ£ô shows Search Area button 62ms
+       Γ£ô shows Get Token link 46ms
+       Γ£ô shows raw command input 46ms
+       ├ù shows alert when Web Serial API is not supported 3ms
+       Γ£ô shows START and STOP buttons 43ms
+       Γ£ô shows visualization container 62ms
+     Γ£ô handles wifi scan result data structure 1ms
+     Γ£ô handles ble scan result data structure 0ms
+     Γ£ô handles spectrum result data structure 0ms
+     Γ£ô handles sys_info data structure 0ms
+     Γ£ô handles CSI data structure 0ms
+     Γ£ô RSSI to signal strength mapping 0ms
+     Γ£ô RSSI to percentage mapping 0ms
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ» Failed Tests 1 ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»
+
+ FAIL  src/__tests__/App.test.jsx > Chimera Red Web Client > Serial Connection > shows alert when Web Serial API is not supported
+TypeError: Cannot redefine property: serial
+ Γ¥» src/__tests__/App.test.jsx:164:20
+    162|             // Save original and temporarily set to undefined
+    163|             const originalSerial = navigator.serial;
+    164|             Object.defineProperty(navigator, 'serial', {
+       |                    ^
+    165|                 value: undefined,
+    166|                 writable: true,
+
+ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1/1]ΓÄ»
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 28 passed (29)
+   Start at  05:17:55
+   Duration  2.04s (transform 82ms, setup 99ms, import 235ms, tests 841ms, environment 715ms)
+
