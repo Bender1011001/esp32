@@ -201,6 +201,7 @@ void setup() {
   digitalWrite(21, HIGH);
 
   // Init PSRAM
+#ifdef BOARD_HAS_PSRAM
   if (psramInit()) {
     Serial.println("PSRAM Init OK");
     maxReplaySize = 64 * 1024; // 64KB Buffer
@@ -217,6 +218,11 @@ void setup() {
     maxReplaySize = 255;
     replayBuffer = (byte *)malloc(maxReplaySize);
   }
+#else
+  Serial.println("PSRAM Disabled in Build - Using RAM");
+  maxReplaySize = 255;
+  replayBuffer = (byte *)malloc(maxReplaySize);
+#endif
 
   // Init HUD
   GUI.begin(); // Replaces manual tft init

@@ -76,3 +76,7 @@ See [WIRING_GUIDE.md](../WIRING_GUIDE.md) for detailed pin mappings (SPI/I2C).
 - **Date**: 2026-01-14
 - **Auditor**: Antigravity
 - **Status**: Fixed - Resolved BOOT crash caused by GPIO 35/36 conflict with PSRAM (TFT pins moved to 11/12). Added PSRAM build flag.
+- **Date**: 2026-01-14 (Session 2)
+- **Auditor**: Antigravity
+- **Status**: Troubleshooting - Disabled PSRAM in `platformio.ini` and added `#ifdef` guards in `main.cpp` to diagnose recurring "PSRAM ID read error" and boot loop.
+
