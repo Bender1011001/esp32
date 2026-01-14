@@ -58,13 +58,24 @@ fun DashboardScreen(serialManager: UsbSerialManager, logs: List<String>) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column {
-                        Text("CONNECTION:", fontSize = Dimens.TextCaption, color = RetroGreen)
+                        Text("USB LINK:", fontSize = Dimens.TextCaption, color = RetroGreen)
                         Text(
-                            if(status == "Connected") "DRUNK WITH POWER" else "SOBER (DISCONNECTED)", 
-                            color = if(status == "Connected") RetroGreen else Color.Red,
+                            status.uppercase(), 
+                            color = if(status.contains("Connected")) RetroGreen else Color.Red,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
+                        if (status != "Connected") {
+                            androidx.compose.material3.Button(
+                                onClick = { serialManager.connect() },
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = RetroGreen),
+                                shape = RectangleShape,
+                                modifier = Modifier.height(30.dp).padding(top = 4.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text("FORCE CONNECT", fontSize = 10.sp, color = Color.Black)
+                            }
+                        }
                     }
                     // Beer Battery Meter
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
