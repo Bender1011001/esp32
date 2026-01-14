@@ -55,6 +55,8 @@ The PN532 is connected via I2C.
 | GND | GND | |
 | **SDA** | **GPIO 1** | (Recommended Alt) |
 | **SCL** | **GPIO 2** | (Recommended Alt) |
+| **IRQ** | **GPIO 4** | (For Emulation) |
+| **RST** | **GPIO 5** | (For Power Saving) |
 
 ---
 
