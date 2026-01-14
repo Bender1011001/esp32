@@ -1,0 +1,39 @@
+{
+    "device": {
+        "mcu": "ESP32-S3",
+        "flash_size_mb": 8,
+        "psram_size_mb": 8,
+        "display": {
+            "driver": "ST7789",
+            "width": 240,
+            "height": 320,
+            "bus": "SPI",
+            "pins": {
+                "mosi": 11,
+                "sclk": 12,
+                "cs": 15,
+                "dc": 16,
+                "rst": 17,
+                "bl": 21
+            }
+        },
+        "inputs": [
+            {
+                "type": "serial",
+                "protocol": "json"
+            },
+            {
+                "type": "button",
+                "name": "BOOT",
+                "pin": 0,
+                "active_low": true
+            }
+        ]
+    },
+    "constraints": {
+        "max_fps": 30,
+        "color_depth": 16,
+        "input_latency_ms": 50,
+        "critical_latency_ms": 5
+    }
+}

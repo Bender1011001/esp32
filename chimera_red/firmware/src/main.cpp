@@ -8,6 +8,7 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 
+#include "gui/GuiController.h"
 #include <Adafruit_PN532.h>
 #include <TFT_eSPI.h>
 #include <Wire.h>
@@ -218,12 +219,10 @@ void setup() {
   }
 
   // Init HUD
-  tft.init();
-  tft.setRotation(1);
-  tft.fillScreen(TFT_RED); // Flash RED to prove screen works
-  delay(500);
+  GUI.begin(); // Replaces manual tft init
+  tft.setRotation(
+      1); // Ensure rotation is set if GUI.begin resets it or vice versa
   tft.fillScreen(TFT_BLACK);
-  tft.setTextSize(1);
   logToHUD("CHIMERA RED BOOT...", PLANET_GREEN);
 
   // Launch Radio Core 0 Task
@@ -279,6 +278,23 @@ void loop() {
   }
 
   // Display updates managed here
+  GUI.update();
+}
+
+// Map Input commands to GUI events
+void handleGuiInput(String cmd) {
+  if (cmd == "INPUT_UP")
+    GUI.handleInput(INPUT_UP);
+  else if (cmd == "INPUT_DOWN")
+    GUI.handleInput(INPUT_DOWN);
+  else if (cmd == "INPUT_LEFT")
+    GUI.handleInput(INPUT_LEFT);
+  else if (cmd == "INPUT_RIGHT")
+    GUI.handleInput(INPUT_RIGHT);
+  else if (cmd == "INPUT_SELECT")
+    GUI.handleInput(INPUT_SELECT);
+  else if (cmd == "INPUT_BACK")
+    GUI.handleInput(INPUT_BACK);
 }
 
 // ESP32 WiFi Promiscuous definitions
@@ -562,6 +578,8 @@ void processCommand(String cmd) {
     scanNFC();
   } else if (cmd == "NFC_EMULATE") {
     emulateNFC();
+  } else if (cmd.startsWith("INPUT_")) {
+    handleGuiInput(cmd);
   } else {
     Serial.printf("{\"error\": \"Unknown command: %s\"}\n", cmd.c_str());
   }

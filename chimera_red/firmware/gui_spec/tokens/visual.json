@@ -1,0 +1,41 @@
+{
+    "theme": "chimera_dark",
+    "palette": {
+        "background": "#000000",
+        "surface": "#1A1A1A",
+        "primary": "#FF3333",
+        "secondary": "#4BA383",
+        "text_main": "#FFFFFF",
+        "text_muted": "#888888",
+        "success": "#00FF00",
+        "warning": "#FFAA00",
+        "error": "#FF0000"
+    },
+    "typography": {
+        "base_px": 12,
+        "scale_ratio": 1.25,
+        "sizes": {
+            "xs": 10,
+            "s": 12,
+            "m": 15,
+            "l": 19,
+            "xl": 24
+        },
+        "font_family": "Monospace"
+    },
+    "spacing": {
+        "unit_px": 4,
+        "xs": 4,
+        "s": 8,
+        "m": 12,
+        "l": 16,
+        "xl": 24
+    },
+    "layout": {
+        "screen_w": 240,
+        "screen_h": 320,
+        "header_h": 24,
+        "footer_h": 20,
+        "item_h": 40
+    }
+}
