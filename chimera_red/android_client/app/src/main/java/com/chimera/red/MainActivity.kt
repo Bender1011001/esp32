@@ -259,14 +259,26 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
                             .padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Pixel Art-style Icon helper (using text for now or simple shapes)
-                        Box(
+                        // Pixel Art Icon
+                        val iconRes = when(index) {
+                            0 -> R.drawable.ic_nav_sys    // System (Bender Head)
+                            1 -> R.drawable.ic_nav_wifi   // WiFi (Antenna)
+                            2 -> R.drawable.ic_nav_ble    // BLE (Beer)
+                            3 -> R.drawable.bender_pixel_asset // NFC (Robo Mafia)
+                            4 -> R.drawable.ic_nav_wifi   // RF (Reuse Antenna)
+                            5 -> R.drawable.ic_nav_sys    // CMD (Reuse Head)
+                            else -> R.drawable.ic_nav_sys
+                        }
+                        
+                        Image(
+                            painter = painterResource(id = iconRes),
+                            contentDescription = label,
                             modifier = Modifier
-                                .size(8.dp)
-                                .background(if (currentTab == index) RetroGreen else Color.Transparent)
-                                .border(1.dp, RetroGreen)
+                                .size(32.dp)
+                                .border(if (currentTab == index) 1.dp else 0.dp, RetroGreen),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = label.uppercase(), 
                             fontSize = 10.sp, 
@@ -339,7 +351,10 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
                 // Scanlines effect overlay could go here
                 when (currentTab) {
                     0 -> DashboardScreen(serialManager, logs) 
-                    1 -> WiFiExpertScreen(onSend = { serialManager.send(it) })
+                    1 -> WiFiExpertScreen(onSend = { serialManager.send(it) }, onManualCrack = {
+                        capturedHandshake = "MANUAL_OVERRIDE" 
+                        showCrackingDialog = true 
+                    })
                     2 -> BLEScreen(serialManager, logs) 
                     3 -> NFCScreen(onSend = { serialManager.send(it) }, lastNfcUid, lastNfcDump) 
                     4 -> SubGhzExpertScreen(onSend = { serialManager.send(it) }, isRecorded = isSubGhzRecorded) 

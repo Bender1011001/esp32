@@ -11,7 +11,7 @@ import com.chimera.red.RetroGreen
 import com.chimera.red.ui.theme.Dimens
 
 @Composable
-fun WiFiExpertScreen(onSend: (String) -> Unit) {
+fun WiFiExpertScreen(onSend: (String) -> Unit, onManualCrack: () -> Unit) {
     var channel by remember { mutableStateOf("1") }
     var targetBssid by remember { mutableStateOf("") }
 
@@ -87,12 +87,22 @@ fun WiFiExpertScreen(onSend: (String) -> Unit) {
         }
         
         Spacer(Modifier.height(Dimens.SpacingMd))
+        Spacer(Modifier.height(Dimens.SpacingMd))
         Button(
             onClick = { onSend("CMD_SPECTRUM") }, 
             colors = ButtonDefaults.buttonColors(containerColor = RetroGreen),
             modifier = Modifier.fillMaxWidth()
         ) { 
             Text("FULL SPECTRUM SCAN", color = Color.Black) 
+        }
+
+        Spacer(Modifier.height(Dimens.SpacingMd))
+        Button(
+             onClick = { onManualCrack() },
+             colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha=0.8f)),
+             modifier = Modifier.fillMaxWidth()
+        ) {
+             Text("OPEN BENDER'S LOCKER (CRACK TOOL)", color = Color.Black)
         }
     }
 }

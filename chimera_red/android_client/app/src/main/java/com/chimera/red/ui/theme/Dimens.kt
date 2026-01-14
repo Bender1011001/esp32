@@ -71,14 +71,14 @@ object Dimens {
     // CORNER RADIUS
     // ========================================================================
     
-    /** Small corner radius (8dp) */
-    val CornerSm: Dp = 8.dp
+    /** Small corner radius (0dp) - pixel art style */
+    val CornerSm: Dp = 0.dp
     
-    /** Medium corner radius (16dp) - cards */
-    val CornerMd: Dp = 16.dp
+    /** Medium corner radius (0dp) - pixel art style */
+    val CornerMd: Dp = 0.dp
     
-    /** Large corner radius (24dp) */
-    val CornerLg: Dp = 24.dp
+    /** Large corner radius (0dp) - pixel art style */
+    val CornerLg: Dp = 0.dp
     
     // ========================================================================
     // TYPOGRAPHY - Font sizes (consider moving to Typography.kt if complex)

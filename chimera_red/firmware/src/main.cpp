@@ -192,6 +192,12 @@ void radioTaskCode(void *parameter) {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000); // Allow USB to stabilize
+  Serial.println("BOOT: Chimera Red Firmware Starting...");
+
+  // Explicit Backlight Control (Force ON)
+  pinMode(21, OUTPUT); // TFT_BL
+  digitalWrite(21, HIGH);
 
   // Init PSRAM
   if (psramInit()) {
@@ -214,9 +220,11 @@ void setup() {
   // Init HUD
   tft.init();
   tft.setRotation(1);
+  tft.fillScreen(TFT_RED); // Flash RED to prove screen works
+  delay(500);
   tft.fillScreen(TFT_BLACK);
   tft.setTextSize(1);
-  logToHUD("CHIMERA RED BOOT...", TFT_RED);
+  logToHUD("CHIMERA RED BOOT...", PLANET_GREEN);
 
   // Launch Radio Core 0 Task
   xTaskCreatePinnedToCore(radioTaskCode, /* Function to implement the task */
