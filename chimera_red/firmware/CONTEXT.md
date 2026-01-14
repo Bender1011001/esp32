@@ -73,6 +73,6 @@ See [WIRING_GUIDE.md](../WIRING_GUIDE.md) for detailed pin mappings (SPI/I2C).
 | `NFC_EMULATE` | Emulate captured UID |
 
 ## Last Audit
-- **Date**: 2026-01-13
+- **Date**: 2026-01-14
 - **Auditor**: Antigravity
-- **Status**: Passed - Created centralized `setRadioMode()` helper
+- **Status**: Fixed - Resolved BOOT crash caused by GPIO 35/36 conflict with PSRAM (TFT pins moved to 11/12). Added PSRAM build flag.
