@@ -1,0 +1,55 @@
+{
+    "features": [
+        {
+            "id": "remote_control",
+            "name": "Remote Controller",
+            "type": "overlay",
+            "description": "Virtual D-Pad to control ESP32 GUI",
+            "commands": [
+                "INPUT_UP",
+                "INPUT_DOWN",
+                "INPUT_LEFT",
+                "INPUT_RIGHT",
+                "INPUT_SELECT",
+                "INPUT_BACK"
+            ]
+        },
+        {
+            "id": "terminal",
+            "name": "Live Terminal",
+            "type": "screen",
+            "description": "Raw Serial I/O with JSON parsing"
+        },
+        {
+            "id": "wifi_expert",
+            "name": "WiFi Expert",
+            "type": "screen",
+            "capabilities": [
+                "SCAN_WIFI",
+                "SNIFF_START",
+                "DEAUTH",
+                "START_CSI"
+            ]
+        },
+        {
+            "id": "ble_expert",
+            "name": "BLE Expert",
+            "type": "screen",
+            "capabilities": [
+                "SCAN_BLE",
+                "BLE_SPAM"
+            ]
+        },
+        {
+            "id": "subghz_expert",
+            "name": "Sub-GHz Expert",
+            "type": "screen",
+            "capabilities": [
+                "INIT_CC1101",
+                "RX_RECORD",
+                "TX_REPLAY",
+                "SET_FREQ"
+            ]
+        }
+    ]
+}

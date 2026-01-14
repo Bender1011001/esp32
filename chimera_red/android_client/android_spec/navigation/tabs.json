@@ -1,0 +1,35 @@
+{
+    "tabs": [
+        {
+            "id": "dashboard",
+            "icon": "Dashboard",
+            "screen": "DashboardScreen"
+        },
+        {
+            "id": "wifi",
+            "icon": "Wifi",
+            "screen": "WifiScreen"
+        },
+        {
+            "id": "ble",
+            "icon": "Bluetooth",
+            "screen": "BleScreen"
+        },
+        {
+            "id": "rf",
+            "icon": "Radio",
+            "screen": "SubGhzScreen"
+        },
+        {
+            "id": "controller",
+            "icon": "Gamepad",
+            "screen": "ControllerScreen"
+        },
+        {
+            "id": "terminal",
+            "icon": "Code",
+            "screen": "TerminalScreen"
+        }
+    ],
+    "default_tab": "dashboard"
+}

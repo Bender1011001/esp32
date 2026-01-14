@@ -1,0 +1,29 @@
+{
+    "theme": "BenderOS",
+    "style": {
+        "primary": "Retro Pixel Art",
+        "colors": {
+            "background": "#000000",
+            "surface": "#121212",
+            "primary": "#FF3333",
+            "secondary": "#4BA383",
+            "text": "#00FF00"
+        },
+        "typography": {
+            "font": "Monospace",
+            "scale": "Compact"
+        }
+    },
+    "controller_mode": {
+        "enabled": true,
+        "layout": "D-Pad + ABXY",
+        "mapping": {
+            "UP": "INPUT_UP",
+            "DOWN": "INPUT_DOWN",
+            "LEFT": "INPUT_LEFT",
+            "RIGHT": "INPUT_RIGHT",
+            "A": "INPUT_SELECT",
+            "B": "INPUT_BACK"
+        }
+    }
+}

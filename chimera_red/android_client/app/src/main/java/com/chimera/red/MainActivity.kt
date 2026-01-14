@@ -227,7 +227,7 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
             )
         }
     // Navigation Tabs (Futurama Themed)
-    val tabs = listOf("Planet Express", "Meatbags", "Shiny Metal", "Robot Mafia", "Hypnotoad", "Scruffy's Log")
+    val tabs = listOf("System", "WiFi", "BLE", "NFC", "Sub-GHz", "Control", "Terminal")
     var currentTab by remember { mutableStateOf(0) }
     var currentQuote by remember { mutableStateOf(BenderQuotes.random()) }
 
@@ -261,12 +261,13 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
                     ) {
                         // Pixel Art Icon
                         val iconRes = when(index) {
-                            0 -> R.drawable.ic_nav_sys    // System (Bender Head)
-                            1 -> R.drawable.ic_nav_wifi   // WiFi (Antenna)
-                            2 -> R.drawable.ic_nav_ble    // BLE (Beer)
-                            3 -> R.drawable.bender_pixel_asset // NFC (Robo Mafia)
-                            4 -> R.drawable.ic_nav_wifi   // RF (Reuse Antenna)
-                            5 -> R.drawable.ic_nav_sys    // CMD (Reuse Head)
+                            0 -> R.drawable.ic_nav_sys    // System
+                            1 -> R.drawable.ic_nav_wifi   // WiFi
+                            2 -> R.drawable.ic_nav_ble    // BLE
+                            3 -> R.drawable.bender_pixel_asset // NFC
+                            4 -> R.drawable.ic_nav_wifi   // RF
+                            5 -> R.drawable.ic_nav_sys    // Controller (Recycled icon until we have more)
+                            6 -> R.drawable.ic_nav_sys    // Terminal
                             else -> R.drawable.ic_nav_sys
                         }
                         
@@ -281,7 +282,7 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = label.uppercase(), 
-                            fontSize = 10.sp, 
+                            fontSize = 8.sp, 
                             color = if (currentTab == index) RetroGreen else RetroGreen.copy(alpha = 0.5f),
                             fontFamily = FontFamily.Monospace,
                             fontWeight = if (currentTab == index) FontWeight.Bold else FontWeight.Normal
@@ -357,8 +358,9 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
                     })
                     2 -> BLEScreen(serialManager, logs) 
                     3 -> NFCScreen(onSend = { serialManager.send(it) }, lastNfcUid, lastNfcDump) 
-                    4 -> SubGhzExpertScreen(onSend = { serialManager.send(it) }, isRecorded = isSubGhzRecorded) 
-                    5 -> TerminalConsole(logs = logs) 
+                    4 -> SubGhzExpertScreen(onSend = { serialManager.send(it) }, isRecorded = isSubGhzRecorded)
+                    5 -> ControllerScreen(sendCommand = { serialManager.send(it) })
+                    6 -> TerminalConsole(logs = logs) 
                 }
             }
         }
