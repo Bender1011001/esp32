@@ -324,7 +324,7 @@ fun ChimeraApp(serialManager: UsbSerialManager) {
                     Spacer(Modifier.width(16.dp))
                     
                     Column {
-                        Text("BENDER.OS v3.1", fontWeight = FontWeight.Bold, fontSize = 24.sp, fontFamily = FontFamily.Monospace, color = RetroGreen)
+                        Text("BENDER'S WORLD v1.2", fontWeight = FontWeight.Bold, fontSize = 24.sp, fontFamily = FontFamily.Monospace, color = RetroGreen)
                         Text("Good News, Everyone!", fontSize = 10.sp, color = RetroGreen.copy(alpha = 0.6f))
                         Divider(color = RetroGreen, thickness = 2.dp, modifier = Modifier.padding(vertical = 4.dp))
                         Text(
