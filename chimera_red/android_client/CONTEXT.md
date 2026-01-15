@@ -11,6 +11,7 @@ It uses **USB OTG Serial** to communicate with the ESP32-S3 firmware, ensuring r
 - **Real-time Navigation**: Tabs for Dashboard, WiFi, BLE, NFC, Sub-GHz, and Terminal.ces)
   - Spectrum Analyzer (Traffic Density)
   - CSI Radar (Visualization)
+  - Logic Analyzer (Sub-GHz Signal Visualizer)
 
 ## Architecture
 
@@ -33,6 +34,19 @@ Centralized dimension constants for consistent, scalable UI across different scr
 - **Serial**: `usb-serial-for-android` library
 
 ## Last Audit
-- **Date**: 2026-01-13
+- **Date**: 2026-01-14
 - **Auditor**: Antigravity
-- **Status**: Passed - Extracted hardcoded dp values into centralized `Dimens.kt`
+- **Status**: Logic Analyzer Visualizer Implemented (Canvas + Serialization)
+### Centralized Data Handling
+- **SerialDataHandler**: A global singleton that listens to `UsbSerialManager` flows, parses JSON, and updates `ChimeraRepository`. This ensures data (WiFi scans, BLE packets) is captured even when the relevant UI tab is not active.
+- **ChimeraRepository**: Now tracks `lastUpdate` timestamps for WiFi and BLE to support event-driven UI logic.
+- **USB Permission**: Implemented `BroadcastReceiver` in `MainActivity` to automatically connect upon permission grant.
+
+## Last Audit
+- **Date**: 2026-01-15
+- **Auditor**: Antigravity
+- **Status**: Fixed Critical Issues (Data Siloing, Buffer Safety, Race Conditions).
+  - **Refactor**: Decoupled UI from Serial Stream using `SerialDataHandler`.
+  - **Robustness**: Fixed USB buffer truncation bug and implemented proper timeout-based logic for Integrated Scenarios.
+  - **UX**: Added auto-connect logic via BroadcastReceiver.
+

@@ -7,16 +7,17 @@ This guide describes how to connect the peripheral modules to the **ESP32-S3 Dev
 2. **ST7789 TFT Display** (240x320 pixel HUD)
 3. **CC1101 Transceiver** (Sub-GHz Radio)
 4. **PN532 NFC Module** (RFID/NFC)
+5. **Control Buttons** (3x Push Buttons)
 
 ---
 
 ## 1. Shared SPI Bus (Fast Devices)
-The Display and CC1101 share the main SPI bus for efficiency.
+The Display and CC1101 share the main SPI bus (HSPI/SPI2) for efficiency and stability.
 
 | Component | Pin Name | ESP32-S3 Pin |
 | :--- | :--- | :--- |
-| **Common SPI** | **MOSI** | **GPIO 11** |
-| **Common SPI** | **SCK / SCLK** | **GPIO 12** |
+| **Common SPI** | **MOSI** | **GPIO 7** (Was 11) |
+| **Common SPI** | **SCK / SCLK** | **GPIO 6** (Was 12) |
 | **CC1101 Only** | **MISO** | **GPIO 13** |
 
 ---
@@ -42,19 +43,26 @@ Each device needs its own Chip Select (CS) and control lines.
 | RST | **GPIO 17** |
 | BL (LED) | **GPIO 21** |
 
+### Navigation Buttons (Active Low)
+Connect one leg to the GPIO, the other to **GND**.
+
+| Button | Function | ESP32-S3 Pin |
+| :--- | :--- | :--- |
+| **BTN1** | **UP** | **GPIO 14** |
+| **BTN2** | **DOWN** | **GPIO 47** |
+| **BTN3** | **SELECT** | **GPIO 0** (Boot Button) |
+
 ---
 
 ## 3. PN532 NFC (I2C Mode)
-The PN532 is connected via I2C. 
-
-> **⚠️ NOTE on Pin Conflict:** In the current "Expert Config", the PN532 is assigned to GPIO 16/17 which conflicts with the TFT Control lines. It is recommended to use the following alternative wiring for a stable build:
+The PN532 is connected via I2C with remapped pins to avoid conflicts.
 
 | PN532 Pin | ESP32-S3 Pin | Note |
 | :--- | :--- | :--- |
 | VCC | 3.3V or 5V | Depends on module |
 | GND | GND | |
-| **SDA** | **GPIO 1** | (Recommended Alt) |
-| **SCL** | **GPIO 2** | (Recommended Alt) |
+| **SDA** | **GPIO 1** | |
+| **SCL** | **GPIO 2** | |
 | **IRQ** | **GPIO 4** | (For Emulation) |
 | **RST** | **GPIO 5** | (For Power Saving) |
 
@@ -64,11 +72,3 @@ The PN532 is connected via I2C.
 - **ESP32-S3**: Powered via USB-C (connected to S24 Ultra).
 - **Peripherals**: All modules should be powered from the ESP32's **3.3V** pin. 
 - Ensure a common ground (**GND**) between all modules.
-
----
-
-## Verification
-1. Open the **BenderOS** (Android) or **Web Client**.
-2. Run `SCAN_WIFI` to verify ESP32 is alive.
-3. Run `INIT_CC1101` - verify HUD says "CC1101 Connection OK".
-4. Run `NFC_SCAN` - verify HUD says "NFC PN532 OK".

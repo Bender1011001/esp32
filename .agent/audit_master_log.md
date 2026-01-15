@@ -1,0 +1,7 @@
+2026-01-15 10:50:32 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\ChimeraRepository.kt | PROCESSED | Singleton repository for MVP state. No issues found.
+2026-01-15 10:51:26 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\Color.kt | PROCESSED | Color definitions. No issues found.
+2026-01-15 11:56:15 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\MainActivity.kt | PROCESSED | Updated BroadcastReceiver for Android 14 compat and fixed deprecated API usage.
+2026-01-15 12:16:30 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\models\SerialModels.kt | PROCESSED | Data models for Gson serialization. No issues found.
+2026-01-15 12:17:29 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\SerialDataHandler.kt | PROCESSED | Moved flow collection/JSON parsing to Dispatchers.Default for performance.
+2026-01-15 12:42:11 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\ui\components\ChimeraBottomBar.kt | PROCESSED | ScrollableTabRow implementation for navigation. No issues found.
+2026-01-15 12:45:37 | C:\Users\admin\GitHub-projects\esp32-c3\chimera_red\android_client\app\src\main\java\com\chimera\red\ui\components\TerminalConsole.kt | PROCESSED | Fixed incorrect timestamp logic by introducing LogEntry with persistent timestamps.

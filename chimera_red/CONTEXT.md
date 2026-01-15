@@ -53,6 +53,7 @@ Create a powerful red teaming system combining an **ESP32-S3** (Radio capabiliti
 - **Note**: Native tests require GCC (currently missing in env).
 - **Fixes**: Resolved multiple definition linker error in `CC1101` vs `TFT_eSPI`.
 - **Critical Fix (2026-01-14)**: Fixed specific BOOT crash on S3 caused by GPIO 35/36 (PSRAM) pin conflict.
+- **Critical Fix (2026-01-14)**: Disabled PSRAM in build configuration to resolve "PSRAM ID read error" and boot loop on devices with faulty/missing PSRAM. Increased RAM fallback buffer to 16KB.
 
 ## Usage Instructions
 1.  **Flash Firmware**:

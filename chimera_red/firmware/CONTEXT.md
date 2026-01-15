@@ -57,6 +57,8 @@ See [WIRING_GUIDE.md](../WIRING_GUIDE.md) for detailed pin mappings (SPI/I2C).
 ## Serial Commands
 - `SCAN_WIFI`: Returns JSON list of networks.
 - `SCAN_BLE`: Returns JSON list of BLE devices.
+- `ANALYZER_START`: Starts Sub-GHz Logic Analyzer stream.
+- `ANALYZER_STOP`: Stops Logic Analyzer.
 - `SNIFF_START <ch>`: Starts promiscuous mode (monitor + packet injection).
 - `SNIFF_STOP`: Stops sniffing.
 - `CMD_SPECTRUM`: Runs 2.4GHz spectrum sweep.
@@ -78,5 +80,16 @@ See [WIRING_GUIDE.md](../WIRING_GUIDE.md) for detailed pin mappings (SPI/I2C).
 - **Status**: Fixed - Resolved BOOT crash caused by GPIO 35/36 conflict with PSRAM (TFT pins moved to 11/12). Added PSRAM build flag.
 - **Date**: 2026-01-14 (Session 2)
 - **Auditor**: Antigravity
-- **Status**: Troubleshooting - Disabled PSRAM in `platformio.ini` and added `#ifdef` guards in `main.cpp` to diagnose recurring "PSRAM ID read error" and boot loop.
+- **Status**: Fixed - Resolved persistent reboot loop/crash caused by TFT utilizing GPIO 11/12 (which conflict with ESP32-S3 internal SPI0 Flash/PSRAM).
+  - **Resolution**: Moved TFT SPI pins to safe GPIOs: **MOSI=7**, **SCK=6**.
+  - **Action Required**: Physical rewiring of TFT display.
+  - **Status**: Firmware boots successfully, Serial commands active, GUI enabled (waiting for rewire).
+- **Date**: 2026-01-14 (Session 3)
+- **Auditor**: Antigravity
+- **Status**: Fixed - Resolved "App Connection Failed" issue.
+  - **Issue**: `TFT_eSPI` was forcing HSPI usage while sharing pins with `CC1101` (using default SPI/FSPI), causing bus conflict/hang on boot.
+  - **Resolution**: Removed `-DUSE_HSPI_PORT=1` from `platformio.ini` to enforce shared usage of the default SPI bus.
+  - **Status**: Flashed successfully to ESP32-S3 on COM3.
+
+
 

@@ -24,14 +24,11 @@ public:
 // -- Implementation --
 
 GuiController::GuiController()
-    : tft(TFT_eSPI()), currentView(NULL), currentScreenId(SCREEN_ROOT) {}
+    : tft(), currentView(NULL), currentScreenId(SCREEN_ROOT) {}
 
 void GuiController::begin() {
-  // Initialized in main.cpp typically, but we can do it here too if needed.
-  // tft.init();
-  // tft.setRotation(1);
-
-  // Load Root
+  tft.init();
+  tft.setRotation(1);
   loadView(SCREEN_ROOT);
 }
 

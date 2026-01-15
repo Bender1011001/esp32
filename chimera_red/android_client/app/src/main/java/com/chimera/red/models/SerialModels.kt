@@ -23,11 +23,15 @@ data class SerialMessage(
     @SerializedName("payload") val payload: String? = null,
     
     // NFC / General Data
-    @SerializedName("data") val data: String? = null
+    @SerializedName("data") val data: String? = null,
+    
+    // Analyzer Data
+    @SerializedName("pulses") val pulses: List<Int>? = null
 )
 
 data class WifiNetwork(
     @SerializedName("ssid") val ssid: String,
+    @SerializedName("bssid") val bssid: String?,
     @SerializedName("rssi") val rssi: Int,
     @SerializedName("channel") val channel: Int,
     @SerializedName("encryption") val encryption: Int
@@ -37,4 +41,9 @@ data class BleDevice(
     @SerializedName("name") val name: String?,
     @SerializedName("address") val address: String,
     @SerializedName("rssi") val rssi: Int
+)
+
+data class LogEntry(
+    val message: String,
+    val timestamp: Long = System.currentTimeMillis()
 )

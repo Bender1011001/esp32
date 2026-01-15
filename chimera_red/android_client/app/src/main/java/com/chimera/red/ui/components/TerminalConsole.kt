@@ -9,10 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import com.chimera.red.models.LogEntry
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import com.chimera.red.ui.theme.Dimens
 
 @Composable
-fun TerminalConsole(logs: List<String>) {
+fun TerminalConsole(logs: List<LogEntry>) {
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -20,9 +24,14 @@ fun TerminalConsole(logs: List<String>) {
             .padding(Dimens.SpacingSm)
     ) {
         items(logs.reversed()) { log ->
+            val timeStr = Instant.ofEpochMilli(log.timestamp)
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+                .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+            
             Text(
-                text = "[${java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"))}] $log",
-                color = if (log.contains("error", true)) Color.Red else Color(0xFF00FF41),
+                text = "[$timeStr] ${log.message}",
+                color = if (log.message.contains("error", true)) Color.Red else Color(0xFF00FF41),
                 fontFamily = FontFamily.Monospace,
                 fontSize = Dimens.TextBody
             )

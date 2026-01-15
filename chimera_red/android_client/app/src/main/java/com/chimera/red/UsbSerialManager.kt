@@ -32,13 +32,46 @@ class UsbSerialManager(private val context: Context) : SerialInputOutputManager.
     private val readBuffer = StringBuilder()
 
     fun tryConnect() {
-        val availableDrivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
-        if (availableDrivers.isEmpty()) {
-            emitStatus("No USB device found")
+        val devices = usbManager.deviceList
+        if (devices.isEmpty()) {
+            emitStatus("Check Cable: No USB devices")
             return
         }
 
-        val driver = availableDrivers[0]
+        // 1. Try Standard Prober
+        var drivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
+
+        // 2. Try Custom Prober if standard failed
+        if (drivers.isEmpty()) {
+            val customTable = com.hoho.android.usbserial.driver.ProbeTable()
+            customTable.addProduct(0x303A, 0x1001, com.hoho.android.usbserial.driver.CdcAcmSerialDriver::class.java)
+            val customProber = UsbSerialProber(customTable)
+            drivers = customProber.findAllDrivers(usbManager)
+        }
+
+        if (drivers.isEmpty()) {
+            // 3. Last Resort: Manual Force for known ESP32-S3
+            for (device in devices.values) {
+                // Decimal 12346 = 0x303A, 4097 = 0x1001
+                if (device.vendorId == 12346 && device.productId == 4097) {
+                    emitStatus("Forcing ESP32-S3 Driver...")
+                    try {
+                        val driver = com.hoho.android.usbserial.driver.CdcAcmSerialDriver(device)
+                        connectToPort(driver.ports[0])
+                        return
+                    } catch (e: Exception) {
+                        emitStatus("Force failed: ${e.message}")
+                    }
+                }
+            }
+
+            // Report what we DID find
+            val info = devices.values.joinToString { "V:${it.vendorId}/P:${it.productId}" }
+            emitStatus("No Driver. Found: $info")
+            return
+        }
+
+        val driver = drivers[0]
         if (!usbManager.hasPermission(driver.device)) {
             val intent = Intent(ACTION_USB_PERMISSION)
             val permissionIntent = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE)
@@ -99,12 +132,22 @@ class UsbSerialManager(private val context: Context) : SerialInputOutputManager.
         }
     }
 
+    // Alias for compatibility
+    fun write(data: String) = send(data)
+
     override fun onNewData(data: ByteArray?) {
         if (data == null) return
         val text = String(data, Charset.defaultCharset())
         
         synchronized(readBuffer) {
             readBuffer.append(text)
+            
+            // Safety Cap: If we accumulate > 8KB without a newline, something is wrong.
+            // Clear to resync rather than chopping the head (which corrupts the stream).
+            if (readBuffer.length > 8192) {
+                readBuffer.clear()
+            }
+            
             var index: Int
             while (readBuffer.indexOf('\n').also { index = it } >= 0) {
                 val line = readBuffer.substring(0, index).trim()

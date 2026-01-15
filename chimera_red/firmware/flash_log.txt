@@ -1,0 +1,157 @@
+Processing esp32-s3-devkitc-1 (platform: espressif32; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (6.12.0) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.40900.250804 (4.9.0) 
+ - tool-mkfatfs @ 2.0.1 
+ - tool-mklittlefs @ 1.203.210628 (2.3) 
+ - tool-mkspiffs @ 2.230.0 (2.30) 
+ - toolchain-riscv32-esp @ 8.4.0+2021r2-patch5 
+ - toolchain-xtensa-esp32s3 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 39 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- SmartRC-CC1101-Driver-Lib @ 2.5.7
+|-- TFT_eSPI @ 2.5.43
+|-- Adafruit PN532 @ 1.3.4
+|-- NimBLE-Arduino @ 2.3.7
+|-- OneButton @ 2.6.1
+|-- ESP32 BLE Arduino @ 2.0.0
+|-- SPI @ 2.0.0
+|-- WiFi @ 2.0.0
+|-- Wire @ 2.0.0
+Building in release mode
+Retrieving maximum program size .pio\build\esp32-s3-devkitc-1\firmware.elf
+Checking size .pio\build\esp32-s3-devkitc-1\firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [==        ]  20.1% (used 65948 bytes from 327680 bytes)
+Flash: [====      ]  43.2% (used 1358021 bytes from 3145728 bytes)
+Configuring upload protocol...
+AVAILABLE: cmsis-dap, esp-bridge, esp-builtin, esp-prog, espota, esptool, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa
+CURRENT: upload_protocol = esptool
+Looking for upload port...
+Using manually specified: COM3
+Uploading .pio\build\esp32-s3-devkitc-1\firmware.bin
+esptool.py v4.9.0
+Serial port COM3
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: 1c:db:d4:41:34:54
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00003fff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Flash will be erased from 0x0000e000 to 0x0000ffff...
+Flash will be erased from 0x00010000 to 0x0015bfff...
+SHA digest in image updated
+Compressed 14032 bytes to 9807...
+Writing at 0x00000000... (100 %)
+Wrote 14032 bytes (9807 compressed) at 0x00000000 in 0.2 seconds (effective 743.3 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 137...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (137 compressed) at 0x00008000 in 0.0 seconds (effective 846.8 kbit/s)...
+Hash of data verified.
+Compressed 8192 bytes to 47...
+Writing at 0x0000e000... (100 %)
+Wrote 8192 bytes (47 compressed) at 0x0000e000 in 0.1 seconds (effective 1238.1 kbit/s)...
+Hash of data verified.
+Compressed 1358384 bytes to 858032...
+Writing at 0x00010000... (1 %)
+Writing at 0x0001bb63... (3 %)
+Writing at 0x00027939... (5 %)
+Writing at 0x00035234... (7 %)
+Writing at 0x00040b90... (9 %)
+Writing at 0x00050dd0... (11 %)
+Writing at 0x00056b54... (13 %)
+Writing at 0x0005c457... (15 %)
+Writing at 0x00062029... (16 %)
+Writing at 0x00067c7f... (18 %)
+Writing at 0x0006d3fd... (20 %)
+Writing at 0x00072c7b... (22 %)
+Writing at 0x00077d5d... (24 %)
+Writing at 0x0007cf47... (26 %)
+Writing at 0x00081fdb... (28 %)
+Writing at 0x00086f68... (30 %)
+Writing at 0x0008becf... (32 %)
+Writing at 0x00091d2d... (33 %)
+Writing at 0x00097908... (35 %)
+Writing at 0x0009cac6... (37 %)
+Writing at 0x000a1eb2... (39 %)
+Writing at 0x000a7173... (41 %)
+Writing at 0x000ac202... (43 %)
+Writing at 0x000b2244... (45 %)
+Writing at 0x000b781e... (47 %)
+Writing at 0x000bd565... (49 %)
+Writing at 0x000c2a45... (50 %)
+Writing at 0x000c8446... (52 %)
+Writing at 0x000ce237... (54 %)
+Writing at 0x000d49a5... (56 %)
+Writing at 0x000da5be... (58 %)
+Writing at 0x000dfd57... (60 %)
+Writing at 0x000e54cb... (62 %)
+Writing at 0x000eac9b... (64 %)
+Writing at 0x000efdb3... (66 %)
+Writing at 0x000f504f... (67 %)
+Writing at 0x000fadaa... (69 %)
+Writing at 0x000ffc0c... (71 %)
+Writing at 0x00104b4d... (73 %)
+Writing at 0x00109c46... (75 %)
+Writing at 0x0010f00e... (77 %)
+Writing at 0x00114314... (79 %)
+Writing at 0x001197b5... (81 %)
+Writing at 0x0011f5c9... (83 %)
+Writing at 0x00124e61... (84 %)
+Writing at 0x0012a628... (86 %)
+Writing at 0x001334a6... (88 %)
+Writing at 0x0013b04e... (90 %)
+Writing at 0x001413ef... (92 %)
+Writing at 0x00148f93... (94 %)
+Writing at 0x0014e378... (96 %)
+Writing at 0x00153b52... (98 %)
+Writing at 0x0015970c... (100 %)
+Wrote 1358384 bytes (858032 compressed) at 0x00010000 in 7.6 seconds (effective 1433.7 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...
+========================= [SUCCESS] Took 19.62 seconds =========================
+
+Processing native (platform: native)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 1 compatible libraries
+Scanning dependencies...
+No dependencies
+Building in release mode
+Compiling .pio\build\native\src\gui\GuiController.o
+Compiling .pio\build\native\src\main.o
+'g++' is not recognized as an internal or external command,
+operable program or batch file.
+*** [.pio\build\native\src\gui\GuiController.o] Error 1
+'g++' is not recognized as an internal or external command,
+operable program or batch file.
+*** [.pio\build\native\src\main.o] Error 1
+========================== [FAILED] Took 0.65 seconds ==========================
+
+Environment         Status    Duration
+------------------  --------  ------------
+esp32-s3-devkitc-1  SUCCESS   00:00:19.619
+native              FAILED    00:00:00.646
+==================== 1 failed, 1 succeeded in 00:00:20.265 ====================

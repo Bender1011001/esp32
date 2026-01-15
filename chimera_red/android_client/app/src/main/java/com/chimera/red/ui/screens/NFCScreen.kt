@@ -1,9 +1,11 @@
 package com.chimera.red.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,77 +13,151 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.chimera.red.UsbSerialManager
 import com.chimera.red.RetroGreen
-import com.chimera.red.DarkGreen
+import com.chimera.red.models.SerialMessage
 import com.chimera.red.ui.theme.Dimens
+import com.google.gson.Gson
 
 @Composable
-fun NFCScreen(onSend: (String) -> Unit, lastNfcUid: String, memoryDump: String?) {
-    var isEmulating by remember { mutableStateOf(false) }
+fun NFCScreen(usbManager: UsbSerialManager) {
+    var nfcData by remember { mutableStateOf("NO TAG DATA") }
+    var status by remember { mutableStateOf("READY") }
+    var isProcessing by remember { mutableStateOf(false) }
+    
+    val gson = remember { Gson() }
+
+    LaunchedEffect(Unit) {
+        usbManager.receivedData.collect { msg ->
+            try {
+                if (msg.startsWith("{")) {
+                     val message = gson.fromJson(msg, SerialMessage::class.java)
+                     if (!message.data.isNullOrEmpty()) {
+                         nfcData = message.data
+                         status = "TAG READ SUCCESS"
+                         isProcessing = false
+                     }
+                     // Update status if provided
+                     if (!message.msg.isNullOrEmpty()) {
+                         status = message.msg.uppercase()
+                         if (message.msg.contains("Emulating")) {
+                             isProcessing = true
+                         }
+                     }
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+    }
 
     Column(
-        Modifier.fillMaxSize().padding(Dimens.SpacingMd), 
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Dimens.SpacingMd),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Icon
+        Icon(
+            imageVector = Icons.Default.Nfc,
+            contentDescription = "NFC",
+            tint = RetroGreen,
+            modifier = Modifier.size(64.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(Dimens.SpacingMd))
+
+        // Status
         Text(
-            "ROBOT MAFIA LOOT", 
-            color = RetroGreen, 
-            fontSize = Dimens.TextDisplay, 
-            fontFamily = FontFamily.Monospace, 
+            text = status,
+            style = MaterialTheme.typography.titleMedium,
+            color = RetroGreen,
+            fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold
         )
-        Text(
-            "Clamps would be proud.", 
-            fontSize = Dimens.TextCaption, 
-            color = RetroGreen.copy(alpha = 0.5f)
-        )
-        Spacer(Modifier.height(Dimens.SpacingMd))
-        
-        // Card Visualizer
-        Box(
+
+        Spacer(modifier = Modifier.height(Dimens.SpacingLg))
+
+        // Data Card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.Black),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(Dimens.CardHeightMd)
-                .border(Dimens.BorderStandard, RetroGreen, RoundedCornerShape(Dimens.CornerMd))
-                .background(DarkGreen.copy(alpha = 0.5f))
+                .border(2.dp, RetroGreen, RoundedCornerShape(8.dp))
         ) {
-            Column(Modifier.padding(Dimens.SpacingMd)) {
-                Text("MIFARE CLASSIC 1K", fontWeight = FontWeight.Bold, color = RetroGreen)
-                Spacer(Modifier.height(Dimens.SpacingSm))
-                Text("UID: $lastNfcUid", color = Color.White, fontFamily = FontFamily.Monospace)
-                Spacer(Modifier.height(Dimens.SpacingSm))
-                Divider(color = RetroGreen)
-                Spacer(Modifier.height(Dimens.SpacingSm))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Dimens.SpacingMd),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text(
-                    memoryDump ?: "[MEMORY EMPTY]", 
-                    fontSize = Dimens.TextCaption, 
-                    color = RetroGreen, 
-                    fontFamily = FontFamily.Monospace
+                    text = "LAST TAG DATA (HEX)",
+                    color = RetroGreen.copy(alpha=0.5f),
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                Text(
+                    text = nfcData,
+                    color = RetroGreen,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
-        
-        Spacer(Modifier.height(Dimens.SpacingLg))
-        
-        Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+
+        Spacer(modifier = Modifier.height(Dimens.SpacingXl))
+
+        // Controls
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.SpacingMd)
+        ) {
             Button(
-                onClick = { 
-                    onSend("NFC_SCAN") 
+                onClick = {
+                    status = "SCANNING..."
+                    isProcessing = true
+                    nfcData = "..."
+                    usbManager.write("NFC_SCAN")
                 },
+                modifier = Modifier.weight(1f).height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = RetroGreen)
             ) {
-                Text("STEAL (READ)", color = Color.Black)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Radar, contentDescription = null, tint = Color.Black)
+                    Text("READ TAG", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
             }
             
             Button(
-                onClick = { 
-                    onSend("NFC_EMULATE") 
-                    isEmulating = !isEmulating
+                onClick = {
+                     status = "EMULATING..."
+                     isProcessing = true
+                     usbManager.write("NFC_EMULATE")
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = if(isEmulating) Color.Red else Color.Gray)
+                modifier = Modifier.weight(1f).height(60.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RetroGreen.copy(alpha = 0.3f),
+                    contentColor = RetroGreen
+                )
             ) {
-                Text(if(isEmulating) "STOP SPOOF" else "SPOOF (EMULATE)", color = Color.White)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Nfc, contentDescription = null)
+                    Text("EMULATE", fontWeight = FontWeight.Bold)
+                }
             }
+        }
+        
+        if (isProcessing) {
+            Spacer(modifier = Modifier.height(Dimens.SpacingMd))
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = RetroGreen,
+                trackColor = RetroGreen.copy(alpha = 0.2f)
+            )
         }
     }
 }

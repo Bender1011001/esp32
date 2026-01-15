@@ -10,11 +10,17 @@
 
 #include "gui/GuiController.h"
 #include <Adafruit_PN532.h>
+#include <OneButton.h>
 #include <TFT_eSPI.h>
 #include <Wire.h>
 #include <math.h>
 
 #define PLANET_GREEN 0x4D10 // #4BA383 in RGB565
+
+// INPUT Buttons
+#define BTN_UP 14
+#define BTN_DOWN 47
+#define BTN_SELECT 0 // Boot Button
 
 // NFC Pins (I2C)
 #define PN532_SDA 1
@@ -24,15 +30,21 @@
 
 // Global objects
 TFT_eSPI tft = TFT_eSPI();
+// GuiController GUI; // Extern in header
+
+OneButton btnUp(BTN_UP, true);
+OneButton btnDown(BTN_DOWN, true);
+OneButton btnSelect(BTN_SELECT, true);
+
 Adafruit_PN532 nfc(PN532_IRQ, PN532_RST); // Use explict IRQ/RST pins
 BLEScan *pBLEScan;
 bool scanning = false;
 bool cc1101Initialized = false;
 
-// CC1101 Pins (ESP32-S3 DevKitC-1 Default SPI)
-#define CC1101_SCK 12
+// CC1101 Pins (Moved to Safe SPI: 7/6)
+#define CC1101_SCK 6
 #define CC1101_MISO 13
-#define CC1101_MOSI 11
+#define CC1101_MOSI 7
 #define CC1101_CSN 10
 #define CC1101_GDO0 3 // Interrupt pin
 
@@ -53,6 +65,9 @@ bool isRecording = false;
 // NFC Buffer
 uint8_t currentUID[7] = {0};
 uint8_t currentUIDLen = 0;
+
+void startAnalyzer();
+void stopAnalyzer();
 
 // ============================================================================
 // CENTRALIZED RADIO MODE MANAGEMENT
@@ -125,11 +140,11 @@ void scanNFC();
 void emulateNFC();
 
 void logToHUD(String msg, uint32_t color = PLANET_GREEN) {
-  tft.setTextColor(color);
-  tft.println("> " + msg);
-  if (tft.getCursorY() > 300) {
-    tft.fillScreen(TFT_BLACK);
-    tft.setCursor(0, 0);
+  GUI.getDisplay()->setTextColor(color);
+  GUI.getDisplay()->println("> " + msg);
+  if (GUI.getDisplay()->getCursorY() > 300) {
+    GUI.getDisplay()->fillScreen(TFT_BLACK);
+    GUI.getDisplay()->setCursor(0, 0);
   }
 }
 
@@ -191,14 +206,32 @@ void radioTaskCode(void *parameter) {
   }
 }
 
+// Button Callbacks
+void onClickUp() { GUI.handleInput(INPUT_UP); }
+void onClickDown() { GUI.handleInput(INPUT_DOWN); }
+void onClickSelect() { GUI.handleInput(INPUT_SELECT); }
+void onLongPressSelect() { GUI.handleInput(INPUT_BACK); }
+
 void setup() {
   Serial.begin(115200);
   delay(1000); // Allow USB to stabilize
   Serial.println("BOOT: Chimera Red Firmware Starting...");
 
-  // Explicit Backlight Control (Force ON)
-  pinMode(21, OUTPUT); // TFT_BL
-  digitalWrite(21, HIGH);
+  // Explicit Backlight Control (Visual Boot Check)
+  pinMode(21, OUTPUT);
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(21, LOW);
+    delay(100);
+    digitalWrite(21, HIGH);
+    delay(100);
+  }
+  digitalWrite(21, HIGH); // Force ON
+
+  // Init Buttons
+  btnUp.attachClick(onClickUp);
+  btnDown.attachClick(onClickDown);
+  btnSelect.attachClick(onClickSelect);
+  btnSelect.attachLongPressStart(onLongPressSelect);
 
   // Init PSRAM
 #ifdef BOARD_HAS_PSRAM
@@ -215,20 +248,19 @@ void setup() {
     }
   } else {
     Serial.println("PSRAM Init Failed - Using RAM");
-    maxReplaySize = 255;
+    maxReplaySize = 16384;
     replayBuffer = (byte *)malloc(maxReplaySize);
   }
 #else
   Serial.println("PSRAM Disabled in Build - Using RAM");
-  maxReplaySize = 255;
+  maxReplaySize = 16384;
   replayBuffer = (byte *)malloc(maxReplaySize);
 #endif
 
   // Init HUD
-  GUI.begin(); // Replaces manual tft init
-  tft.setRotation(
-      1); // Ensure rotation is set if GUI.begin resets it or vice versa
-  tft.fillScreen(TFT_BLACK);
+  GUI.begin();
+  GUI.getDisplay()->setRotation(1);
+  GUI.getDisplay()->fillScreen(TFT_BLACK);
   logToHUD("CHIMERA RED BOOT...", PLANET_GREEN);
 
   // Launch Radio Core 0 Task
@@ -270,6 +302,10 @@ void setup() {
 }
 
 void loop() {
+  btnUp.tick();
+  btnDown.tick();
+  btnSelect.tick();
+
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
@@ -566,6 +602,12 @@ void processCommand(String cmd) {
     handleSniffStart(cmd);
   } else if (cmd == "SNIFF_STOP") {
     stopSniffing();
+  } else if (cmd == "ANALYZER_START") {
+    startAnalyzer();
+  } else if (cmd == "ANALYZER_STOP") {
+    stopAnalyzer();
+  } else if (cmd == "INIT_CC1101") {
+    stopSniffing();
   } else if (cmd == "INIT_CC1101") {
     initCC1101();
   } else if (cmd.startsWith("SET_FREQ")) {
@@ -592,8 +634,13 @@ void processCommand(String cmd) {
 } // End processCommand
 
 void scanWiFi() {
-  Serial.println("{\"type\": \"status\", \"msg\": \"Scanning WiFi...\"}");
-  int n = WiFi.scanNetworks();
+  Serial.println(
+      "{\"type\": \"status\", \"msg\": \"Scanning WiFi... (Please wait)\"}");
+  // Force a slightly longer sync scan
+  int n = WiFi.scanNetworks(
+      false, true, false,
+      300); // Async=false, ShowHidden=true, Passive=false, 300ms/ch
+
   Serial.print("{\"type\": \"wifi_scan_result\", \"count\": " + String(n) +
                ", \"networks\": [");
   if (n == 0) {
@@ -615,7 +662,11 @@ void scanWiFi() {
 }
 
 void scanBLE() {
-  Serial.println("{\"type\": \"status\", \"msg\": \"Scanning BLE...\"}");
+  Serial.println(
+      "{\"type\": \"status\", \"msg\": \"Scanning BLE... (5 Seconds)\"}");
+  pBLEScan->clearResults();
+
+  // Scan for 5 seconds
   BLEScanResults foundDevices = pBLEScan->start(5, false);
   int count = foundDevices.getCount();
 
@@ -630,8 +681,7 @@ void scanBLE() {
       Serial.print(",");
   }
   Serial.println("]}");
-  pBLEScan
-      ->clearResults(); // delete results fromBLEScan buffer to release memory
+  pBLEScan->clearResults();
 }
 
 void sendSystemInfo() {
@@ -666,11 +716,120 @@ void initCC1101() {
 
   ELECHOUSE_cc1101.SetRx();
   cc1101Initialized = true;
+  Serial.println("{\"type\": \"status\", \"msg\": \"CC1101 Ready (RX Mode "
+                 "433.92MHz)\"}");
+}
+
+// Analyzer Globals
+#define ANALYZER_BUFFER_SIZE 512
+volatile int32_t analyzerBuffer[ANALYZER_BUFFER_SIZE];
+volatile int analyzerWriteHead = 0;
+int analyzerReadHead = 0;
+volatile uint32_t lastPulseTime = 0;
+bool analyzerEnabled = false;
+
+// ISR for Analyzer
+void IRAM_ATTR analyzerISR() {
+  uint32_t now = micros();
+  uint32_t diff = now - lastPulseTime;
+  lastPulseTime = now;
+
+  // Store duration. Positive for HIGH (approx), Negative for LOW (approx)
+  // Since we rely on pin change, we need to know state.
+  // Actually, we capture at end of pulse.
+  // If pin is now HIGH, the previous period was LOW.
+  // If pin is now LOW, the previous period was HIGH.
+  bool pinState = digitalRead(CC1101_GDO0);
+  int32_t duration =
+      (pinState ? -diff : diff); // If now HIGH, we just finished a LOW period.
+
+  // Simple ring buffer
+  int nextHead = (analyzerWriteHead + 1) % ANALYZER_BUFFER_SIZE;
+  if (nextHead != analyzerReadHead) { // Don't overflow
+    analyzerBuffer[analyzerWriteHead] = duration;
+    analyzerWriteHead = nextHead;
+  }
+}
+
+void startAnalyzer() {
+  if (analyzerEnabled)
+    return;
+
+  // Init CC1101 if not ready
+  if (!cc1101Initialized)
+    initCC1101();
+
+  // Set GDO0 to Asynchronous Serial Data Output (0x0D or similar, 0x0D is for
+  // async usually) Default library init usually sets it to 0x06 (Sync Word
+  // assert) or similar. We need Raw Async (0x32 for GDO0_CFG?) - Library SetGDO
+  // doesn't allow raw config easily?
+  // ELECHOUSE_cc1101.SpiWriteReg(CC1101_IOCFG0, 0x0D); // Serial Data Output
+  // Let's assume the library's "SetReceive" sets it up such that GDO0 toggles
+  // with data. If it's in Packet mode, it might not. We will trust the current
+  // setup for now or force Asynchronous mode if needed. Force Async Mode for
+  // true logic analyzing of non-packet signals:
+  ELECHOUSE_cc1101.SpiWriteReg(CC1101_PKTCTRL0,
+                               0x32); // Asynchronous serial mode
+
+  analyzerWriteHead = 0;
+  analyzerReadHead = 0;
+  lastPulseTime = micros();
+
+  pinMode(CC1101_GDO0, INPUT);
+  attachInterrupt(digitalPinToInterrupt(CC1101_GDO0), analyzerISR, CHANGE);
+
+  analyzerEnabled = true;
   Serial.println(
-      "{\"type\": \"status\", \"msg\": \"CC1101 Ready (RX Mode 433.92MHz)\"}");
+      "{\"type\": \"status\", \"msg\": \"Sub-GHz Analyzer Started\"}");
+}
+
+void stopAnalyzer() {
+  if (!analyzerEnabled)
+    return;
+  detachInterrupt(digitalPinToInterrupt(CC1101_GDO0));
+  analyzerEnabled = false;
+
+  // Restore Packet Mode (Default for library)
+  ELECHOUSE_cc1101.SpiWriteReg(CC1101_PKTCTRL0, 0x05); // Variable packet length
+
+  Serial.println(
+      "{\"type\": \"status\", \"msg\": \"Sub-GHz Analyzer Stopped\"}");
+}
+
+void runAnalyzerLoop() {
+  if (!analyzerEnabled)
+    return;
+
+  // Check if we have enough data to send a chunk
+  int available =
+      (analyzerWriteHead - analyzerReadHead + ANALYZER_BUFFER_SIZE) %
+      ANALYZER_BUFFER_SIZE;
+
+  // Send if we have data and simple throttling
+  if (available > 32) { // Send chunks of 32+
+    Serial.print("{\"type\": \"analyzer_data\", \"pulses\": [");
+    bool first = true;
+    int count = 0;
+
+    while (analyzerReadHead != analyzerWriteHead &&
+           count < 64) { // Send max 64 at a time
+      if (!first)
+        Serial.print(",");
+      Serial.print(analyzerBuffer[analyzerReadHead]);
+      analyzerReadHead = (analyzerReadHead + 1) % ANALYZER_BUFFER_SIZE;
+      first = false;
+      count++;
+    }
+    Serial.println("]}");
+  }
 }
 
 void receiveCC1101() {
+  if (analyzerEnabled) {
+    runAnalyzerLoop();
+    return;
+  }
+
   if (ELECHOUSE_cc1101.CheckReceiveFlag()) {
     byte buffer[100] = {0};
     byte len = ELECHOUSE_cc1101.ReceiveData(buffer);
@@ -779,8 +938,8 @@ void emulateNFC() {
       0x8C,             // TgInitAsTarget
       0x00,             // Mode: 0x00 = Baud rate adaptation
       0x04, 0x00,       // SENS_RES (0x0004 = MIFARE Classic)
-      0x00, 0x00, 0x00, // NFCID1t (First 3 bytes of UID if known, or random? We
-                        // set specific later)
+      0x00, 0x00, 0x00, // NFCID1t (First 3 bytes of UID if known, or random?
+                        // We set specific later)
       0x08,             // SEL_RES (0x08 = MIFARE 1K)
 
       // We must provide the Bytes for the params.
@@ -832,7 +991,8 @@ void emulateNFC() {
     // With Adafruit lib, we can try reading data.
 
     // 2. We just armed it. In a real polling loop we'd check IRQ.
-    // For this POC, we assume if the command was ACKed, we are in Target mode.
+    // For this POC, we assume if the command was ACKed, we are in Target
+    // mode.
     logToHUD("Armed with Spoof UID", PLANET_GREEN);
 
   } else {
