@@ -1,46 +1,72 @@
 Reusing configuration cache.
 > Task :app:preBuild UP-TO-DATE
 > Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:generateDebugResValues UP-TO-DATE
 > Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:javaPreCompileDebug UP-TO-DATE
 > Task :app:mergeDebugShaders UP-TO-DATE
-> Task :app:checkDebugAarMetadata UP-TO-DATE
-> Task :app:desugarDebugFileDependencies UP-TO-DATE
-> Task :app:writeDebugAppMetadata UP-TO-DATE
-> Task :app:validateSigningDebug UP-TO-DATE
-> Task :app:compileDebugShaders NO-SOURCE
 > Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
-> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
 > Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
 > Task :app:mergeDebugNativeLibs NO-SOURCE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
 > Task :app:stripDebugDebugSymbols NO-SOURCE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
 > Task :app:mergeDebugAssets UP-TO-DATE
-> Task :app:mergeExtDexDebug UP-TO-DATE
 > Task :app:compressDebugAssets UP-TO-DATE
-> Task :app:mapDebugSourceSetPaths
+> Task :app:mergeLibDexDebug UP-TO-DATE
 > Task :app:processDebugMainManifest UP-TO-DATE
-> Task :app:generateDebugResources
 > Task :app:processDebugManifest UP-TO-DATE
 > Task :app:processDebugManifestForPackage UP-TO-DATE
-> Task :app:packageDebugResources
-> Task :app:parseDebugLocalResources
-> Task :app:mergeDebugResources
-> Task :app:processDebugResources
-> Task :app:compileDebugKotlin
-> Task :app:compileDebugJavaWithJavac NO-SOURCE
-> Task :app:processDebugJavaRes
-> Task :app:dexBuilderDebug
-> Task :app:mergeProjectDexDebug
-> Task :app:mergeDebugJavaResource
-> Task :app:packageDebug
-> Task :app:assembleDebug
-> Task :app:createDebugApkListingFileRedirect
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
 
-BUILD SUCCESSFUL in 19s
-32 actionable tasks: 13 executed, 19 up-to-date
+> Task :app:compileDebugKotlin FAILED
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:88:1 Expecting a top level declaration
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:50:5 Modifier 'override' is not applicable to 'top level function'
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:51:9 No supertypes are accessible in this context
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:54:9 Unresolved reference: usbManager
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:54:39 'this' is not defined in this context
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:57:9 Unresolved reference: lifecycleScope
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:58:31 Suspend function 'collect' should be called only from a coroutine or another suspend function
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:58:39 Unresolved reference: usbManager
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:62:35 Unresolved reference: usbManager
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:63:40 'this' is not defined in this context
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:63:46 Unresolved reference: usbReceiver
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:66:9 Unresolved reference: usbManager
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:68:9 Unresolved reference: setContent
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:69:13 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:76:56 Unresolved reference: usbManager
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:83:5 Modifier 'override' is not applicable to 'top level function'
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:84:9 No supertypes are accessible in this context
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:85:9 Unresolved reference: unregisterReceiver
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:85:28 Unresolved reference: usbReceiver
+e: file:///C:/Users/admin/GitHub-projects/esp32-c3/chimera_red/android_client/app/src/main/java/com/chimera/red/MainActivity.kt:86:9 Unresolved reference: usbManager
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 2s
+26 actionable tasks: 1 executed, 25 up-to-date
 Configuration cache entry reused.

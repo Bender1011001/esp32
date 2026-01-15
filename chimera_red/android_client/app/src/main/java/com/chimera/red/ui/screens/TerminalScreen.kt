@@ -12,6 +12,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import com.chimera.red.ChimeraRepository
 import com.chimera.red.UsbSerialManager
 import com.chimera.red.RetroGreen
@@ -54,8 +57,12 @@ fun TerminalScreen(usbManager: UsbSerialManager) {
                 reverseLayout = true // Classic Terminal style, bottom-up
             ) {
                 items(logMessages.reversed()) { msg ->
+                    val timeStr = Instant.ofEpochMilli(msg.timestamp)
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
                     Text(
-                        text = msg,
+                        text = "[$timeStr] ${msg.message}",
                         color = RetroGreen,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp
