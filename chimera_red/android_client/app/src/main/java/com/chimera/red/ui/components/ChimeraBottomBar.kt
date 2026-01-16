@@ -20,7 +20,10 @@ fun ChimeraBottomBar(navController: NavController) {
         Screen.Control,
         Screen.Terminal,
         Screen.Integrated,
-        Screen.Settings
+        Screen.Map,
+        Screen.CSI,
+        Screen.Settings,
+        Screen.Loot
     )
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()

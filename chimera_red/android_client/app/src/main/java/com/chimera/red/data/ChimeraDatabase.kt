@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [LogEntity::class, NetworkEntity::class, BleDeviceEntity::class], version = 1)
+@Database(entities = [LogEntity::class, NetworkEntity::class, BleDeviceEntity::class, CaptureEntity::class], version = 3)
 abstract class ChimeraDatabase : RoomDatabase() {
     abstract fun dao(): ChimeraDao
 
@@ -19,7 +19,9 @@ abstract class ChimeraDatabase : RoomDatabase() {
                     context.applicationContext,
                     ChimeraDatabase::class.java,
                     "chimera_db"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // Simple for development, cleans old tables
+                .build()
                 INSTANCE = instance
                 instance
             }

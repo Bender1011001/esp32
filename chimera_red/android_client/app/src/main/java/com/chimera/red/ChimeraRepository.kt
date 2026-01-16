@@ -54,7 +54,9 @@ object ChimeraRepository {
                         bssid = it.bssid,
                         rssi = it.rssi,
                         channel = it.channel,
-                        encryption = it.encryption
+                        encryption = it.encryption,
+                        lat = it.lat,
+                        lon = it.lon
                     ) 
                 }
                 withContext(Dispatchers.Main) {
@@ -72,13 +74,25 @@ object ChimeraRepository {
                     BleDevice(
                         name = it.name,
                         address = it.address,
-                        rssi = it.rssi
+                        rssi = it.rssi,
+                        lat = it.lat,
+                        lon = it.lon
                     ) 
                 }
                 withContext(Dispatchers.Main) {
                     _bleDevices.clear()
                     _bleDevices.addAll(models)
                     lastBleUpdate = System.currentTimeMillis()
+                }
+            }
+        }
+
+        repoScope.launch {
+            // Captures
+            dao?.getAllCaptures()?.collect { entities ->
+                withContext(Dispatchers.Main) {
+                    _captures.clear()
+                    _captures.addAll(entities)
                 }
             }
         }
@@ -95,6 +109,21 @@ object ChimeraRepository {
     val bleDevices: List<BleDevice> = _bleDevices
     
     var lastBleUpdate by mutableStateOf(0L)
+
+    // Captures
+    private val _captures = mutableStateListOf<CaptureEntity>()
+    val captures: List<CaptureEntity> = _captures
+    
+    // Location
+    var currentLat by mutableStateOf(0.0)
+    var currentLon by mutableStateOf(0.0)
+    var hasLocation by mutableStateOf(false)
+    
+    fun updateLocation(lat: Double, lon: Double) {
+        currentLat = lat
+        currentLon = lon
+        hasLocation = true
+    }
     
     // Logic Analyzer Data (Keep in memory for performance, high freq)
     private val _analyzerData = mutableStateListOf<Int>()
@@ -110,11 +139,13 @@ object ChimeraRepository {
         repoScope.launch {
             val entities = newNetworks.map { 
                 NetworkEntity(
-                    bssid = it.bssid ?: it.ssid, // Fallback if BSSID missing (unlikely from new firmware)
+                    bssid = it.bssid ?: it.ssid, 
                     ssid = it.ssid,
                     rssi = it.rssi,
                     channel = it.channel,
-                    encryption = it.encryption
+                    encryption = it.encryption,
+                    lat = if (hasLocation) currentLat else null,
+                    lon = if (hasLocation) currentLon else null
                 )
             }
             dao?.insertNetworks(entities)
@@ -127,10 +158,32 @@ object ChimeraRepository {
                 BleDeviceEntity(
                     address = it.address,
                     name = it.name,
-                    rssi = it.rssi
+                    rssi = it.rssi,
+                    lat = if (hasLocation) currentLat else null,
+                    lon = if (hasLocation) currentLon else null
                 )
             }
             dao?.insertBleDevices(entities)
+        }
+    }
+
+    fun addCapture(type: String, ssid: String?, bssid: String?, channel: Int?, data: String) {
+        repoScope.launch {
+            dao?.insertCapture(
+                CaptureEntity(
+                    type = type,
+                    ssid = ssid,
+                    bssid = bssid,
+                    channel = channel,
+                    data = data
+                )
+            )
+        }
+    }
+
+    fun deleteCapture(id: Int) {
+        repoScope.launch {
+            dao?.deleteCapture(id)
         }
     }
     

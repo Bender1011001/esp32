@@ -26,7 +26,10 @@ data class SerialMessage(
     @SerializedName("data") val data: String? = null,
     
     // Analyzer Data
-    @SerializedName("pulses") val pulses: List<Int>? = null
+    @SerializedName("pulses") val pulses: List<Int>? = null,
+    
+    // CSI Data
+    @SerializedName("csi_data") val csiData: List<Int>? = null
 )
 
 data class WifiNetwork(
@@ -34,13 +37,17 @@ data class WifiNetwork(
     @SerializedName("bssid") val bssid: String?,
     @SerializedName("rssi") val rssi: Int,
     @SerializedName("channel") val channel: Int,
-    @SerializedName("encryption") val encryption: Int
+    @SerializedName("encryption") val encryption: Int,
+    var lat: Double? = null,
+    var lon: Double? = null
 )
 
 data class BleDevice(
     @SerializedName("name") val name: String?,
     @SerializedName("address") val address: String,
-    @SerializedName("rssi") val rssi: Int
+    @SerializedName("rssi") val rssi: Int,
+    var lat: Double? = null,
+    var lon: Double? = null
 )
 
 data class LogEntry(

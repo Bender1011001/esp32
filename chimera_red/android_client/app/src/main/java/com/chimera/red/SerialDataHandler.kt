@@ -41,7 +41,21 @@ object SerialDataHandler {
             if (!msg.data.isNullOrEmpty()) {
                 ChimeraRepository.addLog("DATA: ${msg.data}")
             }
-             if (!msg.payload.isNullOrEmpty()) {
+
+            // 4. Capture Handling (Loot Gallery)
+            if (msg.type == "wifi_handshake" || !msg.payload.isNullOrEmpty()) {
+                val payloadData = msg.payload ?: msg.data ?: ""
+                if (payloadData.isNotEmpty()) {
+                    ChimeraRepository.addCapture(
+                        type = msg.type ?: "WIFI_HANDSHAKE",
+                        ssid = msg.ssid,
+                        bssid = msg.bssid,
+                        channel = msg.ch,
+                        data = payloadData
+                    )
+                    ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: "Unknown"}")
+                }
+            } else if (!msg.payload.isNullOrEmpty()) {
                 ChimeraRepository.addLog("PAYLOAD: ${msg.payload}")
             }
 

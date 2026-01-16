@@ -14,6 +14,7 @@ import com.chimera.red.ui.screens.SettingsScreen
 import com.chimera.red.ui.screens.SubGhzScreen
 import com.chimera.red.ui.screens.TerminalScreen
 import com.chimera.red.ui.screens.WiFiScreen
+import com.chimera.red.ui.screens.LootScreen
 
 sealed class Screen(val route: String, val title: String) {
     object Dashboard : Screen("dashboard", "Core")
@@ -24,7 +25,10 @@ sealed class Screen(val route: String, val title: String) {
     object Control : Screen("control", "Control")
     object Terminal : Screen("terminal", "Terminal")
     object Integrated : Screen("integrated", "Integrated")
+    object Map : Screen("map", "Map")
+    object CSI : Screen("csi", "Radar")
     object Settings : Screen("settings", "Settings")
+    object Loot : Screen("loot", "Loot")
 }
 
 @Composable
@@ -38,6 +42,9 @@ fun ChimeraNavGraph(navController: NavHostController, usbManager: UsbSerialManag
         composable(Screen.Control.route) { ControlScreen(usbManager) }
         composable(Screen.Terminal.route) { TerminalScreen(usbManager) }
         composable(Screen.Integrated.route) { IntegratedScreen(usbManager) }
+        composable(Screen.Map.route) { com.chimera.red.ui.screens.MapScreen() }
+        composable(Screen.CSI.route) { com.chimera.red.ui.screens.CSIScreen(usbManager) }
         composable(Screen.Settings.route) { SettingsScreen(usbManager) }
+        composable(Screen.Loot.route) { LootScreen() }
     }
 }

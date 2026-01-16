@@ -94,47 +94,51 @@ fun BleScreen(usbManager: UsbSerialManager) {
 
         Spacer(modifier = Modifier.height(Dimens.SpacingMd))
         
-        // Active Attack Section ("Bender's Curse")
+        // Active Attack Console ("Bender's Curse")
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(Dimens.SpacingMd),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
+            Column(Modifier.padding(Dimens.SpacingMd)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = "Alert", tint = Color.Yellow)
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        "Bender's Curse",
+                        "BENDER'S CURSE (Active)",
                         fontWeight = FontWeight.Bold,
                         color = RetroGreen
                     )
-                    Text(
-                        "Spam 'Bender's Pager' advertisements",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = RetroGreen.copy(alpha=0.7f)
-                    )
                 }
+                Spacer(Modifier.height(Dimens.SpacingSm))
+                Text(
+                    "Broadcast spam advertisements to disrupt or annoy nearby devices.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = RetroGreen.copy(alpha=0.7f)
+                )
                 
-                Button(
-                    onClick = {
-                        isSpamming = true
-                        usbManager.write("BLE_SPAM")
-                    },
-                    enabled = !isScanning && !isSpamming,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSpamming) Color.Red else RetroGreen.copy(alpha=0.2f),
-                        contentColor = if (isSpamming) Color.White else RetroGreen
-                    )
-                ) {
-                    if (isSpamming) {
-                        Text("ACTIVE!")
-                    } else {
-                        Text("LAUNCH")
-                    }
+                Spacer(Modifier.height(Dimens.SpacingMd))
+                
+                // Attack Buttons Grid
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                   SpamButton("BENDER", isSpamming) { 
+                       isSpamming = true
+                       usbManager.write("BLE_SPAM:BENDER")
+                   }
+                   SpamButton("SAMSUNG", isSpamming) { 
+                       isSpamming = true
+                       usbManager.write("BLE_SPAM:SAMSUNG")
+                   }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                   SpamButton("GOOGLE", isSpamming) { 
+                       isSpamming = true
+                       usbManager.write("BLE_SPAM:GOOGLE")
+                   }
+                   SpamButton("APPLE", isSpamming) { 
+                       isSpamming = true
+                       usbManager.write("BLE_SPAM:APPLE")
+                   }
                 }
             }
         }
@@ -186,5 +190,20 @@ fun BleDeviceCard(device: BleDevice) {
                 color = RetroGreen
             )
         }
+    }
+}
+
+@Composable
+fun SpamButton(label: String, isBusy: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = !isBusy,
+        modifier = Modifier.width(140.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = RetroGreen.copy(alpha = 0.2f),
+            contentColor = RetroGreen
+        )
+    ) {
+        Text(label, fontWeight = FontWeight.Bold)
     }
 }

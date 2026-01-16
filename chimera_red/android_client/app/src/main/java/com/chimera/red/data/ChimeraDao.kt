@@ -40,4 +40,14 @@ interface ChimeraDao {
 
     @Query("SELECT * FROM ble_devices ORDER BY rssi DESC")
     fun getAllBleDevices(): Flow<List<BleDeviceEntity>>
+
+    // -- Captures --
+    @Insert
+    suspend fun insertCapture(capture: CaptureEntity)
+
+    @Query("SELECT * FROM captures ORDER BY timestamp DESC")
+    fun getAllCaptures(): Flow<List<CaptureEntity>>
+
+    @Query("DELETE FROM captures WHERE id = :id")
+    suspend fun deleteCapture(id: Int)
 }

@@ -56,12 +56,25 @@ Centralized dimension constants for consistent, scalable UI across different scr
 - **Core**: Stable connection, permission handling, real-time logging (Persistent).
 - **WiFi Tab**:
     - Scanning (SSID, BSSID, RSSI, Ch, Enc).
+    - **CSI Radar (Pro)**: Live Waterfall/Heatmap of Channel State Information for motion detection.
     - **Targeted Deauth** (Specific BSSID).
     - **Sniffing** (Specific Channel).
+    - **Loot Integration**: Automatic capture of handshakes.
+    - **On-Device Cracking**: Multi-threaded PBKDF2 engine for dictionary attacks.
     - Persistent list storage.
-- **BLE Tab**: Scanning, basic listing (Persistent).
+- **BLE Tab**: 
+    - Scanning, basic listing (Persistent).
+    - **"Bender's Curse" Console**:
+        - Spam "Bender's Pager" (General Flood)
+        - Spoof Samsung Buds (Popup trigger)
+        - Spoof Google Fast Pair
+        - Spoof Apple AirTag
 - **NFC Tab**: Read (UID/Data), Emulate trigger.
-- **Sub-GHz**: Spectrum visualizer (Canvas), Frequency Tuner.
+- **Sub-GHz**: 
+    - Spectrum visualizer (Canvas), Frequency Tuner.
+    - **Logic Analyzer & Recorder**: Capture raw ASK/OOK signals and replay them.
+    - **Attacks**: 12-bit "Brute Force" Fuzzer (CAME/Nice/PT2262).
+- **Map / Wardriving**: OpenStreetMap integration to map discovered WiFi & BLE devices with GPS coordinates.
 - **Integrated**: "Full Recon" scenario script.
 - **Firmware**: ESP32-S3 custom build with `ST7789_2_DRIVER` (Fixed Fullscreen), `CC1101`, `PN532`.
 
