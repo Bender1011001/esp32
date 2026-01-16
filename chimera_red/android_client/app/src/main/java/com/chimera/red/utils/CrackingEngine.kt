@@ -15,7 +15,14 @@ object CrackingEngine {
         "qwertyuiop", "letmein", "princess", "iloveyou", "football", "monkey", "jordan", "dragon",
         "superman", "batman", "flower", "cocacola", "starwars", "mustang", "shadow", "master",
         "michael", "hunter", "welcome", "orange", "computer", "liverpool", "arsenal", "chelsea",
-        "guest123", "network1", "homewifi", "bluejay", "password!", "adminadmin", "oracle", "secret"
+        "guest123", "network1", "homewifi", "bluejay", "password!", "adminadmin", "oracle", "secret",
+        "123456789", "12345", "11111111", "00000000", "password1234", "qwerty123", "iloveu2",
+        "lovelove", "666666", "88888888", "123456", "login", "password01", "root123", "system",
+        "access", "admin#1", "wifi123", "internet", "public", "testing", "development", "production",
+        "server", "client", "support", "helpdesk", "manage", "monitor", "secure", "locked",
+        "key", "code", "entry", "gate", "door", "passcode", "identity", "verify", "auth",
+        "user123", "staff1", "m0nkey", "dr4gon", "p4ssword", "b3nd3r", "ch1m3ra", "r3dm4sk",
+        "f4stfwd", "pluto", "mars", "jupiter", "saturn", "galaxy", "nebula", "comet"
     )
 
     /**

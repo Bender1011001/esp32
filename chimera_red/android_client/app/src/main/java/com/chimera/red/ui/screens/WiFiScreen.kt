@@ -23,6 +23,7 @@ import com.chimera.red.RetroGreen
 import com.chimera.red.models.SerialMessage
 import com.chimera.red.models.WifiNetwork
 import com.chimera.red.ui.theme.Dimens
+import com.chimera.red.ui.components.CrackingDialog
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 
@@ -36,6 +37,10 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
     
     // Selection State for Details Dialog
     var selectedNetwork by remember { mutableStateOf<WifiNetwork?>(null) }
+
+    // State for Cracker
+    var showCracker by remember { mutableStateOf(false) }
+    var crackerSsid by remember { mutableStateOf("") }
 
     LaunchedEffect(lastUpdate) {
         if (isScanning && lastUpdate > 0) {
@@ -74,6 +79,8 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                     Text("Actions", style = MaterialTheme.typography.titleSmall, color = RetroGreen)
                     
                     // Action Grid
+                    var isCapturing by remember { mutableStateOf(false) }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { 
@@ -83,7 +90,21 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("DEAUTH", color = Color.Red, fontSize = 12.sp)
+                            Text("DEAUTH", color = Color.Red, fontSize = 10.sp)
+                        }
+                        
+                        Button(
+                            onClick = { 
+                                isCapturing = true
+                                usbManager.write("SNIFF_START:${net.channel}")
+                                // Send deauth shortly after to trigger handshake
+                                val target = net.bssid ?: net.ssid
+                                usbManager.write("DEAUTH:$target")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.2f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (isCapturing) "CAPTURING..." else "AUTO-CAPTURE", color = RetroGreen, fontSize = 10.sp)
                         }
                         
                         Button(
@@ -94,8 +115,31 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                             colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.2f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("SNIFF CH", color = RetroGreen, fontSize = 12.sp)
+                            Text("SNIFF", color = RetroGreen, fontSize = 10.sp)
                         }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Dedicated Crack Button
+                    val hasHandshake = ChimeraRepository.captures.any { it.ssid == net.ssid && it.type == "WIFI_HANDSHAKE" }
+                    
+                    Button(
+                        onClick = { 
+                            if (hasHandshake) {
+                                crackerSsid = net.ssid
+                                showCracker = true
+                                selectedNetwork = null
+                            } else {
+                                ChimeraRepository.addLog("Handshake required for ${net.ssid}")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (hasHandshake) RetroGreen else Color.Gray.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Text(if (hasHandshake) "CRACK PASSWORD" else "HANDSHAKE MISSING", color = if (hasHandshake) Color.Black else Color.Gray)
                     }
                 }
             },
@@ -106,6 +150,13 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
             },
             containerColor = Color.Black,
             textContentColor = RetroGreen
+        )
+    }
+
+    if (showCracker) {
+        CrackingDialog(
+            ssid = crackerSsid,
+            onDismiss = { showCracker = false }
         )
     }
 

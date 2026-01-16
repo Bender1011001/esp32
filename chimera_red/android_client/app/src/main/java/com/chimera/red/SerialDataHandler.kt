@@ -43,17 +43,17 @@ object SerialDataHandler {
             }
 
             // 4. Capture Handling (Loot Gallery)
-            if (msg.type == "wifi_handshake" || !msg.payload.isNullOrEmpty()) {
+            if (msg.type == "wifi_handshake" || msg.type == "handshake" || !msg.payload.isNullOrEmpty()) {
                 val payloadData = msg.payload ?: msg.data ?: ""
-                if (payloadData.isNotEmpty()) {
+                if (payloadData.isNotEmpty() || msg.type == "handshake") {
                     ChimeraRepository.addCapture(
-                        type = msg.type ?: "WIFI_HANDSHAKE",
+                        type = if (msg.type == "handshake") "WIFI_HANDSHAKE" else (msg.type ?: "WIFI_HANDSHAKE"),
                         ssid = msg.ssid,
                         bssid = msg.bssid,
                         channel = msg.ch,
                         data = payloadData
                     )
-                    ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: "Unknown"}")
+                    ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: msg.bssid ?: "Unknown Source"}")
                 }
             } else if (!msg.payload.isNullOrEmpty()) {
                 ChimeraRepository.addLog("PAYLOAD: ${msg.payload}")
