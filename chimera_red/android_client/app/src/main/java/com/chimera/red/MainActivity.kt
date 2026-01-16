@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
         // Retain existing USB Logic
         usbManager = UsbSerialManager(this)
         
+        // Initialize Repository (DB)
+        ChimeraRepository.initialize(applicationContext)
+        
         // GLOBAL DATA COLLECTION
         lifecycleScope.launch {
             SerialDataHandler.collect(usbManager.receivedData)

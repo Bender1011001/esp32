@@ -38,15 +38,35 @@ Centralized dimension constants for consistent, scalable UI across different scr
 - **Auditor**: Antigravity
 - **Status**: Logic Analyzer Visualizer Implemented (Canvas + Serialization)
 ### Centralized Data Handling
+### Centralized Data Handling
 - **SerialDataHandler**: A global singleton that listens to `UsbSerialManager` flows, parses JSON, and updates `ChimeraRepository`. This ensures data (WiFi scans, BLE packets) is captured even when the relevant UI tab is not active.
-- **ChimeraRepository**: Now tracks `lastUpdate` timestamps for WiFi and BLE to support event-driven UI logic.
+- **ChimeraRepository**: Backed by **Room Database** to persist logs, networks, and BLE devices across app restarts.
 - **USB Permission**: Implemented `BroadcastReceiver` in `MainActivity` to automatically connect upon permission grant.
 
-## Last Audit
-- **Date**: 2026-01-15
-- **Auditor**: Antigravity
-- **Status**: Fixed Critical Issues (Data Siloing, Buffer Safety, Race Conditions).
-  - **Refactor**: Decoupled UI from Serial Stream using `SerialDataHandler`.
-  - **Robustness**: Fixed USB buffer truncation bug and implemented proper timeout-based logic for Integrated Scenarios.
-  - **UX**: Added auto-connect logic via BroadcastReceiver.
+## Architecture
+- **Language**: Kotlin (Jetpack Compose)
+- **Navigation**: androidx.navigation with BottomNavigationView
+- **Hardware Integration**: `usb-serial-for-android` (Mik3y)
+- **Data Persistence**: **Room Database** (`ChimeraDatabase`) for Logs, Networks, and BLE Devices.
+- **Serial Protocol**: JSON-based
+    - Device -> App: `{"type": "status", "msg": "..."}` or `{"type": "wifi_scan", ...}`
+    - App -> Device: `SCAN_WIFI`, `DEAUTH:<BSSID>`, `NFC_SCAN`, `CMD_SPECTRUM`, etc.
+
+## Current Component Status (v1.8)
+- **Core**: Stable connection, permission handling, real-time logging (Persistent).
+- **WiFi Tab**:
+    - Scanning (SSID, BSSID, RSSI, Ch, Enc).
+    - **Targeted Deauth** (Specific BSSID).
+    - **Sniffing** (Specific Channel).
+    - Persistent list storage.
+- **BLE Tab**: Scanning, basic listing (Persistent).
+- **NFC Tab**: Read (UID/Data), Emulate trigger.
+- **Sub-GHz**: Spectrum visualizer (Canvas), Frequency Tuner.
+- **Integrated**: "Full Recon" scenario script.
+- **Firmware**: ESP32-S3 custom build with `ST7789_2_DRIVER` (Fixed Fullscreen), `CC1101`, `PN532`.
+
+## Roadmap
+- **Security**: Encrypt DB/Captures (Android Keystore).
+- **Offline Cracking**: PBKDF2 (S24 GPU/CPU).
+- **Exports**: PCAP/PDF generation.
 

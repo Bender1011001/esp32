@@ -33,11 +33,80 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
     var isScanning by remember { mutableStateOf(false) }
     // Watch for updates from central handler
     val lastUpdate = ChimeraRepository.lastWifiUpdate
+    
+    // Selection State for Details Dialog
+    var selectedNetwork by remember { mutableStateOf<WifiNetwork?>(null) }
 
     LaunchedEffect(lastUpdate) {
         if (isScanning && lastUpdate > 0) {
             isScanning = false
         }
+    }
+
+    // Detail Dialog
+    if (selectedNetwork != null) {
+        val net = selectedNetwork!!
+        AlertDialog(
+            onDismissRequest = { selectedNetwork = null },
+            title = {
+                Column {
+                    Text(text = net.ssid.ifEmpty { "<HIDDEN>" }, style = MaterialTheme.typography.titleLarge, color = RetroGreen)
+                    Text(text = net.bssid ?: "Unknown MAC", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Divider(color = RetroGreen.copy(alpha = 0.3f))
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Signal Strength:", style = MaterialTheme.typography.bodyMedium)
+                        Text("${net.rssi} dBm", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Channel:", style = MaterialTheme.typography.bodyMedium)
+                        Text("${net.channel}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Encryption:", style = MaterialTheme.typography.bodyMedium)
+                        Text("${net.encryption}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Divider(color = RetroGreen.copy(alpha = 0.3f))
+                    
+                    Text("Actions", style = MaterialTheme.typography.titleSmall, color = RetroGreen)
+                    
+                    // Action Grid
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { 
+                                val target = net.bssid ?: net.ssid
+                                usbManager.write("DEAUTH:$target") 
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("DEAUTH", color = Color.Red, fontSize = 12.sp)
+                        }
+                        
+                        Button(
+                            onClick = { 
+                                usbManager.write("SNIFF_START:${net.channel}")
+                                selectedNetwork = null // Close to show logs?
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.2f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("SNIFF CH", color = RetroGreen, fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedNetwork = null }) {
+                    Text("CLOSE", color = RetroGreen)
+                }
+            },
+            containerColor = Color.Black,
+            textContentColor = RetroGreen
+        )
     }
 
     Column(
@@ -60,7 +129,6 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
             Button(
                 onClick = { 
                     isScanning = true
-                    // Keep old results or clear? Clearing is safer for "new scan"
                     ChimeraRepository.updateNetworks(emptyList()) 
                     usbManager.write("SCAN_WIFI") 
                 },
@@ -91,21 +159,19 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
             verticalArrangement = Arrangement.spacedBy(Dimens.SpacingSm)
         ) {
             items(networks) { network ->
-                NetworkCard(network, onDeauth = {
-                     // Prefer BSSID if available for precision
-                     val target = network.bssid ?: network.ssid
-                     usbManager.write("DEAUTH:$target")
-                })
+                NetworkCard(network, onClick = { selectedNetwork = network })
             }
         }
     }
 }
 
 @Composable
-fun NetworkCard(network: WifiNetwork, onDeauth: () -> Unit) {
+fun NetworkCard(network: WifiNetwork, onClick: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.padding(Dimens.SpacingMd)) {
             Row(
@@ -133,19 +199,17 @@ fun NetworkCard(network: WifiNetwork, onDeauth: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "CH: ${network.channel} | ENC: ${network.encryption}",
+                    text = "CH: ${network.channel} | ${network.bssid ?: "MAC?"}",
                     style = MaterialTheme.typography.bodySmall,
                     color = RetroGreen.copy(alpha = 0.7f)
                 )
                 
-                Button(
-                    onClick = onDeauth,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.height(32.dp)
-                ) {
-                    Text("DEAUTH", fontSize = 10.sp, color = Color.Red)
-                }
+                Icon(
+                    imageVector = Icons.Default.Warning, 
+                    contentDescription = "Details",
+                    tint = RetroGreen.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }

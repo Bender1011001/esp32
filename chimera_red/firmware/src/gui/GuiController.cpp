@@ -107,10 +107,10 @@ void GuiController::loadView(ScreenID screen) {
 
 void GuiView::drawHeader(String title) {
   TFT_eSPI *t = gui->getDisplay();
-  t->fillRect(0, 0, 240, 24, COLOR_SURFACE);
+  t->fillRect(0, 0, 320, 24, COLOR_SURFACE);
   t->setTextColor(COLOR_SECONDARY, COLOR_SURFACE);
-  t->drawCentreString(title, 120, 4, FONT_BASE);
-  t->drawFastHLine(0, 24, 240, COLOR_PRIMARY);
+  t->drawCentreString(title, 160, 4, FONT_BASE);
+  t->drawFastHLine(0, 24, 320, COLOR_PRIMARY);
 }
 
 // -- Menu View Implementation --
@@ -165,11 +165,11 @@ void MenuView::drawList() {
 
     // Highlight
     if (i == selectedIndex) {
-      t->fillRect(0, y, 240, itemH, COLOR_SURFACE);
+      t->fillRect(0, y, 320, itemH, COLOR_SURFACE);
       t->setTextColor(COLOR_PRIMARY, COLOR_SURFACE);
       t->drawString("> " + items[i].title, 10, y + 8, FONT_BASE);
     } else {
-      t->fillRect(0, y, 240, itemH, COLOR_BG);
+      t->fillRect(0, y, 320, itemH, COLOR_BG);
       t->setTextColor(COLOR_TEXT, COLOR_BG);
       t->drawString("  " + items[i].title, 10, y + 8, FONT_BASE);
     }

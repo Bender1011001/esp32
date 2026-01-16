@@ -648,10 +648,11 @@ void scanWiFi() {
   } else {
     for (int i = 0; i < n; ++i) {
       // Print SSID and RSSI for each network found
-      Serial.printf("{\"ssid\": \"%s\", \"rssi\": %d, \"channel\": %d, "
+      Serial.printf("{\"ssid\": \"%s\", \"bssid\": \"%s\", \"rssi\": %d, "
+                    "\"channel\": %d, "
                     "\"encryption\": %d}",
-                    WiFi.SSID(i).c_str(), WiFi.RSSI(i), WiFi.channel(i),
-                    WiFi.encryptionType(i));
+                    WiFi.SSID(i).c_str(), WiFi.BSSIDstr(i).c_str(),
+                    WiFi.RSSI(i), WiFi.channel(i), WiFi.encryptionType(i));
       if (i < n - 1)
         Serial.print(",");
       delay(10);

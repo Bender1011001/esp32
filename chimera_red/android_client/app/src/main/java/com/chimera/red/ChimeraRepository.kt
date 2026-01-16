@@ -7,10 +7,84 @@ import com.chimera.red.models.LogEntry
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.chimera.red.data.*
 
 // Simple singleton repository to hold state across tab switches
 // avoiding the need for complex database/ViewModel setup for this MVP.
 object ChimeraRepository {
+    // -- Database --
+    private var db: ChimeraDatabase? = null
+    private var dao: ChimeraDao? = null
+    private val repoScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    fun initialize(context: Context) {
+        if (db == null) {
+            db = ChimeraDatabase.getDatabase(context)
+            dao = db!!.dao()
+            
+            // Start observing DB flows and updating state
+            observeDatabase()
+        }
+    }
+
+    private fun observeDatabase() {
+        repoScope.launch {
+            // Logs
+            dao?.getAllLogs()?.collect { entities ->
+                val models = entities.map { LogEntry(it.message, it.timestamp) }
+                withContext(Dispatchers.Main) {
+                    _terminalLogs.clear()
+                    _terminalLogs.addAll(models)
+                }
+            }
+        }
+        
+        repoScope.launch {
+            // Networks
+            dao?.getAllNetworks()?.collect { entities ->
+                val models = entities.map { 
+                    WifiNetwork(
+                        ssid = it.ssid,
+                        bssid = it.bssid,
+                        rssi = it.rssi,
+                        channel = it.channel,
+                        encryption = it.encryption
+                    ) 
+                }
+                withContext(Dispatchers.Main) {
+                    _wifiNetworks.clear()
+                    _wifiNetworks.addAll(models)
+                    lastWifiUpdate = System.currentTimeMillis()
+                }
+            }
+        }
+        
+        repoScope.launch {
+            // BLE
+            dao?.getAllBleDevices()?.collect { entities ->
+                val models = entities.map { 
+                    BleDevice(
+                        name = it.name,
+                        address = it.address,
+                        rssi = it.rssi
+                    ) 
+                }
+                withContext(Dispatchers.Main) {
+                    _bleDevices.clear()
+                    _bleDevices.addAll(models)
+                    lastBleUpdate = System.currentTimeMillis()
+                }
+            }
+        }
+    }
+
+    // -- State (UI Observes this) --
     private val _wifiNetworks = mutableStateListOf<WifiNetwork>()
     val wifiNetworks: List<WifiNetwork> = _wifiNetworks
     
@@ -22,7 +96,7 @@ object ChimeraRepository {
     
     var lastBleUpdate by mutableStateOf(0L)
     
-    // Logic Analyzer Data
+    // Logic Analyzer Data (Keep in memory for performance, high freq)
     private val _analyzerData = mutableStateListOf<Int>()
     val analyzerData: List<Int> = _analyzerData
 
@@ -31,15 +105,33 @@ object ChimeraRepository {
     val terminalLogs: List<LogEntry> = _terminalLogs
     
     fun updateNetworks(newNetworks: List<WifiNetwork>) {
-        _wifiNetworks.clear()
-        _wifiNetworks.addAll(newNetworks)
-        lastWifiUpdate = System.currentTimeMillis()
+        if (newNetworks.isEmpty()) return // Don't clear DB on empty scan, only insert found
+        
+        repoScope.launch {
+            val entities = newNetworks.map { 
+                NetworkEntity(
+                    bssid = it.bssid ?: it.ssid, // Fallback if BSSID missing (unlikely from new firmware)
+                    ssid = it.ssid,
+                    rssi = it.rssi,
+                    channel = it.channel,
+                    encryption = it.encryption
+                )
+            }
+            dao?.insertNetworks(entities)
+        }
     }
     
     fun updateBleDevices(newDevices: List<BleDevice>) {
-        _bleDevices.clear()
-        _bleDevices.addAll(newDevices)
-        lastBleUpdate = System.currentTimeMillis()
+         repoScope.launch {
+            val entities = newDevices.map { 
+                BleDeviceEntity(
+                    address = it.address,
+                    name = it.name,
+                    rssi = it.rssi
+                )
+            }
+            dao?.insertBleDevices(entities)
+        }
     }
     
     fun appendAnalyzerData(pulses: List<Int>) {
@@ -55,14 +147,14 @@ object ChimeraRepository {
     }
 
     fun addLog(msg: String) {
-        _terminalLogs.add(LogEntry(msg))
-        // Limit log size to prevent memory issues
-        if (_terminalLogs.size > 2000) {
-            _terminalLogs.removeAt(0)
+        repoScope.launch {
+            dao?.insertLog(LogEntity(message = msg))
         }
     }
 
     fun clearLogs() {
-        _terminalLogs.clear()
+        repoScope.launch {
+            dao?.clearLogs()
+        }
     }
 }
