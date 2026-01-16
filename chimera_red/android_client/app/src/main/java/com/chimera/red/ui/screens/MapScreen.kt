@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.chimera.red.ChimeraRepository
 import com.chimera.red.RetroGreen
+import com.chimera.red.UsbSerialManager
 import com.chimera.red.ui.theme.Dimens
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -35,7 +36,7 @@ import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun MapScreen() {
+fun MapScreen(usbManager: UsbSerialManager) {
     val context = LocalContext.current
     Configuration.getInstance().load(context, android.preference.PreferenceManager.getDefaultSharedPreferences(context))
 
@@ -45,6 +46,9 @@ fun MapScreen() {
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
     )
+
+    // Recon State
+    var isReconActive by remember { mutableStateOf(false) }
 
     // Location Updates
     LaunchedEffect(permissionsState.allPermissionsGranted) {
@@ -58,7 +62,7 @@ fun MapScreen() {
     // Data from Repo
     val wifiNetworks = ChimeraRepository.wifiNetworks
     val bleDevices = ChimeraRepository.bleDevices
-    var mapCenter by remember { mutableStateOf(GeoPoint(37.7749, -122.4194)) } // Default SF
+    var mapCenter by remember { mutableStateOf(GeoPoint(37.7749, -122.4194)) }
     val hasLocation = ChimeraRepository.hasLocation
     
     if (ChimeraRepository.hasLocation) {
@@ -66,11 +70,40 @@ fun MapScreen() {
     }
 
     Column(Modifier.fillMaxSize().padding(Dimens.SpacingMd)) {
+        // Control Row
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = Dimens.SpacingSm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "WARDRIVING MAP", 
+                color = RetroGreen, 
+                style = MaterialTheme.typography.titleSmall,
+                fontFamily = FontFamily.Monospace
+            )
+            
+            Button(
+                onClick = { 
+                    isReconActive = !isReconActive
+                    if (isReconActive) usbManager.write("RECON_START")
+                    else usbManager.write("RECON_STOP")
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isReconActive) Color.Red.copy(alpha = 0.5f) else RetroGreen
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.height(32.dp)
+            ) {
+                Text(if (isReconActive) "STOP RECON" else "START RECON", color = Color.Black, fontSize = 10.sp)
+            }
+        }
+
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .border(Dimens.BorderThin, RetroGreen)
+                .border(Dimens.BorderThin, if (isReconActive) Color.Red.copy(alpha = 0.5f) else RetroGreen)
         ) {
             if (permissionsState.allPermissionsGranted) {
                 AndroidView(
@@ -79,7 +112,6 @@ fun MapScreen() {
                             setTileSource(TileSourceFactory.MAPNIK)
                             setMultiTouchControls(true)
                             
-                            // User Location
                             val locationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(ctx), this)
                             locationOverlay.enableMyLocation()
                             overlays.add(locationOverlay)
@@ -89,39 +121,32 @@ fun MapScreen() {
                         }
                     },
                     update = { mapView ->
-                        // Add Markers
-                        mapView.overlays.removeIf { it is Marker } // Clear old markers (inefficient but works for small sets)
+                        mapView.overlays.removeIf { it is Marker }
                         
-                        // Re-add MyLocation
-                        val locationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(context), mapView)
-                        locationOverlay.enableMyLocation()
-                        mapView.overlays.add(locationOverlay)
-
-                        // Add WiFi
                         wifiNetworks.forEach { net ->
                             if (net.lat != null && net.lon != null) {
                                 val m = Marker(mapView)
                                 m.position = GeoPoint(net.lat!!, net.lon!!)
                                 m.title = "WiFi: ${net.ssid}"
-                                m.snippet = net.bssid
+                                m.snippet = "${net.bssid}\nRSSI: ${net.rssi}"
                                 m.icon = context.getDrawable(org.osmdroid.library.R.drawable.marker_default) 
+                                m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                 mapView.overlays.add(m)
                             }
                         }
                         
-                        // Add BLE
                         bleDevices.forEach { dev ->
                             if (dev.lat != null && dev.lon != null) {
                                 val m = Marker(mapView)
                                 m.position = GeoPoint(dev.lat!!, dev.lon!!)
                                 m.title = "BLE: ${dev.name ?: "Unknown"}"
-                                m.snippet = dev.address
+                                m.snippet = "${dev.address}\nRSSI: ${dev.rssi}"
                                 m.icon = context.getDrawable(org.osmdroid.library.R.drawable.marker_default_focused_base) 
+                                m.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                 mapView.overlays.add(m)
                             }
                         }
-                        
-                        // Center if tracking
+
                         if (hasLocation) {
                            mapView.controller.setCenter(GeoPoint(ChimeraRepository.currentLat, ChimeraRepository.currentLon))
                         }
@@ -137,15 +162,14 @@ fun MapScreen() {
             }
         }
         
-        Spacer(Modifier.height(Dimens.SpacingMd))
+        Spacer(Modifier.height(Dimens.SpacingSm))
         
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("WiFi: ${wifiNetworks.size}", color = RetroGreen)
-            Text("BLE: ${bleDevices.size}", color = RetroGreen)
-            Text(
-                if (hasLocation) "GPS: LICKE" else "GPS: WAITING...", 
-                color = if (hasLocation) RetroGreen else Color.Red
-            )
+            Text("NETS: ${wifiNetworks.size}", color = RetroGreen, fontSize = 12.sp)
+            Text("BLE: ${bleDevices.size}", color = RetroGreen, fontSize = 12.sp)
+            val gpsStatus = if (hasLocation) "FIXED" else "WAITING..."
+            val gpsColor = if (hasLocation) RetroGreen else Color.Red
+            Text("GPS: $gpsStatus", color = gpsColor, fontSize = 12.sp)
         }
     }
 }
@@ -161,8 +185,6 @@ fun setupLocationUpdates(context: Context) {
         override fun onProviderDisabled(provider: String) {}
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
-    
-    // Request updates
     locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 5f, locationListener)
     locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 2000L, 5f, locationListener)
 }

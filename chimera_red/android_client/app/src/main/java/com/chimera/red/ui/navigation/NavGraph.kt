@@ -42,7 +42,7 @@ fun ChimeraNavGraph(navController: NavHostController, usbManager: UsbSerialManag
         composable(Screen.Control.route) { ControlScreen(usbManager) }
         composable(Screen.Terminal.route) { TerminalScreen(usbManager) }
         composable(Screen.Integrated.route) { IntegratedScreen(usbManager) }
-        composable(Screen.Map.route) { com.chimera.red.ui.screens.MapScreen() }
+        composable(Screen.Map.route) { com.chimera.red.ui.screens.MapScreen(usbManager) }
         composable(Screen.CSI.route) { com.chimera.red.ui.screens.CSIScreen(usbManager) }
         composable(Screen.Settings.route) { SettingsScreen(usbManager) }
         composable(Screen.Loot.route) { LootScreen() }

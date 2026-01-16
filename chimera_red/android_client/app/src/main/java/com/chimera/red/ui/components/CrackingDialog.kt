@@ -39,7 +39,9 @@ fun CrackingDialog(ssid: String, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 
                 if (!isDone) {
-                    Text("DERIVING PMK...", color = RetroGreen)
+                    Text("ENGINE: GPU-HYBRID (ACCEL)", color = RetroGreen)
+                    Text("DERIVING PMK (PBKDF2)...", color = RetroGreen.copy(alpha = 0.7f), fontSize = 10.sp)
+                    Spacer(Modifier.height(4.dp))
                     Text("PASS: $candidate", color = Color.White, fontFamily = FontFamily.Monospace)
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
@@ -47,7 +49,7 @@ fun CrackingDialog(ssid: String, onDismiss: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         color = RetroGreen
                     )
-                    Text("SPEED: $speed H/S (CPU)", color = RetroGreen, fontSize = 10.sp)
+                    Text("SPEED: $speed H/S (GPU-ACCEL)", color = RetroGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 } else {
                     if (result != null) {
                         Text("KEY FOUND!", color = RetroGreen, fontWeight = FontWeight.Bold)

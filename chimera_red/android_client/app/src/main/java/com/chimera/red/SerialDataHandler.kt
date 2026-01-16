@@ -1,6 +1,7 @@
 package com.chimera.red
 
 import com.chimera.red.models.SerialMessage
+import com.chimera.red.models.WifiNetwork
 import com.chimera.red.ChimeraRepository
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,19 @@ object SerialDataHandler {
                         data = payloadData
                     )
                     ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: msg.bssid ?: "Unknown Source"}")
+                }
+            } else if (msg.type == "recon") {
+                // Passive discovery (Wardriving)
+                msg.ssid?.let { ssid ->
+                    ChimeraRepository.updateNetworks(listOf(
+                        WifiNetwork(
+                            ssid = ssid,
+                            bssid = msg.bssid,
+                            rssi = msg.rssi ?: 0,
+                            channel = msg.ch ?: 0,
+                            encryption = 0 // Unknown in passive
+                        )
+                    ))
                 }
             } else if (!msg.payload.isNullOrEmpty()) {
                 ChimeraRepository.addLog("PAYLOAD: ${msg.payload}")

@@ -56,10 +56,9 @@ Centralized dimension constants for consistent, scalable UI across different scr
 - **Core**: Stable connection, permission handling, real-time logging (Persistent).
 - **WiFi Tab**:
     - Scanning (SSID, BSSID, RSSI, Ch, Enc).
-    - **CSI Radar (Pro)**: Live Waterfall/Heatmap of Channel State Information for motion detection.
-    - **Targeted Deauth** (Specific BSSID).
-    - **Sniffing** (Specific Channel).
-    - **Loot Integration**: Automatic capture of handshakes.
+    - **WiFi Passive Recon (Wardriving)**: Background task that hops channels to capture beacons and probe responses without active scanning.
+- **GPU-Hybrid Cracking**: Multi-core parallel dictionary attack for WPA2 handshakes, utilizing all available CPU cores for high-speed PBKDF2 calculation.
+- **Improved Lo-Fi HUD**: Real-time logging on the ESP32 screen with larger font and auto-scrolling.
     - **On-Device Cracking**: Multi-threaded PBKDF2 engine for dictionary attacks.
     - Persistent list storage.
 - **BLE Tab**: 

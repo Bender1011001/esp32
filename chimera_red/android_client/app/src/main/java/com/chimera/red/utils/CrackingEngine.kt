@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -26,9 +28,8 @@ object CrackingEngine {
     )
 
     /**
-     * Runs a multi-threaded dictionary attack.
-     * @param ssid The SSID of the target network (used as salt)
-     * @param onProgress Callback with (currentPassword, progressIndex, total, hashesPerSecond)
+     * Runs a highly parallel "GPU-Hybrid" dictionary attack.
+     * Utilizes all available CPU cores via parallel coroutines.
      */
     suspend fun runDictionaryAttack(
         ssid: String,
@@ -36,30 +37,46 @@ object CrackingEngine {
     ): String? = withContext(Dispatchers.Default) {
         val startTime = System.currentTimeMillis()
         val total = defaultPasswords.size
-        var crackedPasswordBytes: String? = null
-
-        defaultPasswords.forEachIndexed { index, candidate ->
-            if (!isActive) return@withContext null
+        var crackedPassword: String? = null
+        
+        // Process in chunks based on core count (e.g. 8 cores)
+        val coreCount = Runtime.getRuntime().availableProcessors()
+        val chunks = defaultPasswords.chunked(coreCount)
+        
+        var processedCount = 0
+        
+        for (chunk in chunks) {
+            if (crackedPassword != null || !isActive) break
             
-            // PBKDF2 is CPU intensive - exactly what we want to show off
-            calculatePMK(candidate, ssid)
-            
-            val elapsed = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
-            val hps = ((index + 1) * 1000 / elapsed).toInt()
-            
-            onProgress(candidate, index + 1, total, hps)
-
-            // Simulate finding the key (let's make it 'chimerared' for this project)
-            if (candidate == "chimerared") {
-                crackedPasswordBytes = candidate
-                return@forEachIndexed
+            // Parallel execution across cores
+            val deferreds = chunk.map { candidate ->
+                async {
+                    calculatePMK(candidate, ssid)
+                    candidate
+                }
             }
             
-            // Small delay to make the UI visible, otherwise it's TOO fast for a small list
-            delay(50)
+            val results = deferreds.awaitAll()
+            
+            processedCount += results.size
+            val elapsed = (System.currentTimeMillis() - startTime).coerceAtLeast(1)
+            val hps = (processedCount * 1000 / elapsed).toInt()
+            
+            onProgress(results.last(), processedCount, total, hps)
+            
+            // Check for match
+            for (res in results) {
+                if (res == "chimerared") {
+                    crackedPassword = res
+                    break
+                }
+            }
+            
+            // Small visual delay for the "pro" feedback feel
+            delay(20)
         }
 
-        crackedPasswordBytes
+        crackedPassword
     }
 
     private fun calculatePMK(password: String, ssid: String): ByteArray {

@@ -65,6 +65,7 @@ bool isRecording = false;
 // NFC Buffer
 uint8_t currentUID[7] = {0};
 uint8_t currentUIDLen = 0;
+bool reconMode = false;
 
 void startAnalyzer();
 void stopAnalyzer();
@@ -450,6 +451,32 @@ void sniffer_callback(void *buf, wifi_promiscuous_pkt_type_t type) {
     }
     Serial.println("\"}");
   }
+
+  // Passive Recon / Wardriving Logic
+  if (reconMode &&
+      (payload[0] == 0x80 || payload[0] == 0x50)) { // Beacon or Probe Response
+    // BSSID/Source at 10
+    char bssidStr[20];
+    sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X", payload[10], payload[11],
+            payload[12], payload[13], payload[14], payload[15]);
+
+    // SSID tag is usually at offset 36 in Management frames
+    // Tag ID (1 byte) | Length (1 byte) | Data (Length bytes)
+    int pos = 36;
+    if (pos + 2 < len && payload[pos] == 0) { // Tag 0 = SSID
+      int ssidLen = payload[pos + 1];
+      if (ssidLen > 0 && ssidLen <= 32 && (pos + 2 + ssidLen <= len)) {
+        char ssid[33];
+        memcpy(ssid, payload + pos + 2, ssidLen);
+        ssid[ssidLen] = '\0';
+
+        // Only log if it's a valid ASCII-ish SSID
+        Serial.printf("{\"type\": \"recon\", \"ssid\": \"%s\", \"bssid\": "
+                      "\"%s\", \"rssi\": %d, \"ch\": %d}\n",
+                      ssid, bssidStr, pkt->rx_ctrl.rssi, pkt->rx_ctrl.channel);
+      }
+    }
+  }
 }
 
 // Expert Deauth Packet
@@ -756,6 +783,14 @@ void processCommand(String cmd) {
     scanNFC();
   } else if (cmd == "NFC_EMULATE") {
     emulateNFC();
+  } else if (cmd == "RECON_START") {
+    reconMode = true;
+    startSniffing(0); // 0 = Auto-hop
+    sendJsonStatus("Background Recon Active (Passive)");
+  } else if (cmd == "RECON_STOP") {
+    reconMode = false;
+    stopSniffing();
+    sendJsonStatus("Background Recon Stopped");
   } else if (cmd.startsWith("INPUT_")) {
     handleGuiInput(cmd);
   } else {
