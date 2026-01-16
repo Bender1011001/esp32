@@ -19,13 +19,21 @@ import com.chimera.red.ui.theme.Dimens
 import com.google.gson.Gson
 import kotlinx.coroutines.flow.collect
 
+import androidx.compose.ui.unit.sp // Added import
+
 @Composable
 fun CSIScreen(usbManager: UsbSerialManager) {
     var isRunning by remember { mutableStateOf(false) }
     var csiHistory by remember { mutableStateOf(listOf<List<Int>>()) } // List of CSI packets (each 16-64 ints)
     val maxHistory = 50
     
-    val gson = remember { Gson() }
+    val gson = remember { Gson() } // Re-added gson
+    
+    var useFilter by remember { mutableStateOf(true) }
+    var lastPacket: List<Int>? = null // Logic to store previous packet for EMA
+
+    // Motion metric
+    var motionMetric by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) {
         usbManager.receivedData.collect { msg ->
@@ -33,8 +41,27 @@ fun CSIScreen(usbManager: UsbSerialManager) {
                 if (msg.startsWith("{")) {
                     val message = gson.fromJson(msg, SerialMessage::class.java)
                     if (message.type == "csi" && message.csiData != null) {
-                        val newData = message.csiData
+                        var newData: List<Int> = message.csiData
+                        
+                        // Apply Filter (EMA)
+                        if (useFilter) {
+                            val alpha = 0.3f
+                            val prev = lastPacket ?: newData
+                            newData = newData.mapIndexed { index, value -> 
+                                val oldVal = if (index < prev.size) prev[index] else value
+                                (value * alpha + oldVal * (1 - alpha)).toInt()
+                            }
+                        }
+                        
+                        lastPacket = newData
                         csiHistory = (csiHistory + listOf(newData)).takeLast(maxHistory)
+                        
+                        // Calculate Motion Metric (Variance from previous)
+                        if (csiHistory.size > 2) {
+                             val lastSum = newData.sum()
+                             val prevSum = csiHistory[csiHistory.size - 2].sum()
+                             motionMetric = kotlin.math.abs(lastSum - prevSum).toFloat()
+                        }
                     }
                 }
             } catch (e: Exception) { }
@@ -42,8 +69,31 @@ fun CSIScreen(usbManager: UsbSerialManager) {
     }
 
     Column(Modifier.fillMaxSize().padding(Dimens.SpacingMd)) {
-        Text("CSI RADAR (PRO)", style = MaterialTheme.typography.titleLarge, color = RetroGreen)
-        Text("WiFi Channel State Information - Motion Detection", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+        Row(
+             modifier = Modifier.fillMaxWidth(),
+             horizontalArrangement = Arrangement.SpaceBetween,
+             verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("CSI RADAR (PRO)", style = MaterialTheme.typography.titleLarge, color = RetroGreen)
+                Text("WiFi Channel State Information - Motion Detection", style = MaterialTheme.typography.labelMedium, color = Color.Gray)
+            }
+            
+            // Filter Toggle
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("FILTER", color = RetroGreen, fontSize = 12.sp)
+                Switch(
+                    checked = useFilter,
+                    onCheckedChange = { useFilter = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = RetroGreen,
+                        checkedTrackColor = RetroGreen.copy(alpha=0.5f),
+                        uncheckedThumbColor = Color.Gray,
+                        uncheckedTrackColor = Color.DarkGray
+                    )
+                )
+            }
+        }
         
         Spacer(Modifier.height(Dimens.SpacingMd))
         
@@ -83,13 +133,8 @@ fun CSIScreen(usbManager: UsbSerialManager) {
             }
             
             // Motion Indicator (Simple variance check)
-            if (isRunning && csiHistory.size > 2) {
-                 val last = csiHistory.last().sum()
-                 val prev = csiHistory[csiHistory.size - 2].sum()
-                 val delta = kotlin.math.abs(last - prev)
-                 if (delta > 50) { // arbitrary threshold
-                     Text("MOVEMENT DETECTED", color = Color.Red, modifier = Modifier.align(Alignment.TopCenter).padding(8.dp))
-                 }
+            if (isRunning && motionMetric > 50) { // arbitrary threshold
+                 Text("MOVEMENT DETECTED", color = Color.Red, modifier = Modifier.align(Alignment.TopCenter).padding(8.dp))
             }
         }
         
