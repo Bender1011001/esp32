@@ -140,9 +140,22 @@ void scanNFC();
 void emulateNFC();
 
 void logToHUD(String msg, uint32_t color = PLANET_GREEN) {
-  GUI.getDisplay()->setTextColor(color);
+  // Use size 2 for "Pro" feel and readability
+  GUI.getDisplay()->setTextSize(2);
+  GUI.getDisplay()->setTextColor(color, TFT_BLACK); // Opaque background
+
+  // Header if at top
+  if (GUI.getDisplay()->getCursorY() == 0) {
+    GUI.getDisplay()->setTextColor(TFT_WHITE, TFT_BLUE);
+    GUI.getDisplay()->println(" CHIMERA RED LOGS ");
+    GUI.getDisplay()->setTextColor(color, TFT_BLACK);
+  }
+
   GUI.getDisplay()->println("> " + msg);
-  if (GUI.getDisplay()->getCursorY() > 300) {
+
+  // Clear if near bottom (size 2 is ~16-20px tall)
+  if (GUI.getDisplay()->getCursorY() > 280) {
+    delay(500); // Let user catch the last line
     GUI.getDisplay()->fillScreen(TFT_BLACK);
     GUI.getDisplay()->setCursor(0, 0);
   }
@@ -248,12 +261,12 @@ void setup() {
     }
   } else {
     Serial.println("PSRAM Init Failed - Using RAM");
-    maxReplaySize = 16384;
+    maxReplaySize = 8192; // Reduced to 8KB to save heap
     replayBuffer = (byte *)malloc(maxReplaySize);
   }
 #else
   Serial.println("PSRAM Disabled in Build - Using RAM");
-  maxReplaySize = 16384;
+  maxReplaySize = 8192; // Reduced to 8KB
   replayBuffer = (byte *)malloc(maxReplaySize);
 #endif
 
@@ -264,13 +277,9 @@ void setup() {
   logToHUD("CHIMERA RED BOOT...", PLANET_GREEN);
 
   // Launch Radio Core 0 Task
-  xTaskCreatePinnedToCore(radioTaskCode, /* Function to implement the task */
-                          "RadioTask",   /* Name of the task */
-                          10000,         /* Stack size in words */
-                          NULL,          /* Task input parameter */
-                          1,             /* Priority of the task */
-                          &RadioTask,    /* Task handle. */
-                          0);            /* Core where the task should run */
+  xTaskCreatePinnedToCore(radioTaskCode, "RadioTask",
+                          5120, // Reduced from 10000 to 5KB
+                          NULL, 1, &RadioTask, 0);
 
   // Init WiFi
   WiFi.mode(WIFI_STA);
@@ -518,6 +527,7 @@ void runSpectrumScan() {
 
 // Helper for standardized status messages
 void sendJsonStatus(String msg, String type = "status") {
+  logToHUD(msg);
   Serial.print("{\"type\": \"");
   Serial.print(type);
   Serial.print("\", \"msg\": \"");
@@ -754,8 +764,7 @@ void processCommand(String cmd) {
 } // End processCommand
 
 void scanWiFi() {
-  Serial.println(
-      "{\"type\": \"status\", \"msg\": \"Scanning WiFi... (Please wait)\"}");
+  sendJsonStatus("Scanning WiFi...", "status");
   // Force a slightly longer sync scan
   int n = WiFi.scanNetworks(
       false, true, false,
@@ -764,8 +773,9 @@ void scanWiFi() {
   Serial.print("{\"type\": \"wifi_scan_result\", \"count\": " + String(n) +
                ", \"networks\": [");
   if (n == 0) {
-    // No networks found
+    logToHUD("WiFi: No nets found", TFT_ORANGE);
   } else {
+    logToHUD("WiFi: Found " + String(n) + " nets", TFT_GREEN);
     for (int i = 0; i < n; ++i) {
       // Print SSID and RSSI for each network found
       Serial.printf("{\"ssid\": \"%s\", \"bssid\": \"%s\", \"rssi\": %d, "
@@ -783,8 +793,7 @@ void scanWiFi() {
 }
 
 void scanBLE() {
-  Serial.println(
-      "{\"type\": \"status\", \"msg\": \"Scanning BLE... (5 Seconds)\"}");
+  sendJsonStatus("Scanning BLE...", "status");
   pBLEScan->clearResults();
 
   // Scan for 5 seconds
@@ -802,6 +811,7 @@ void scanBLE() {
       Serial.print(",");
   }
   Serial.println("]}");
+  logToHUD("BLE: Found " + String(count) + " dev", TFT_GREEN);
   pBLEScan->clearResults();
 }
 
@@ -817,7 +827,7 @@ void sendSystemInfo() {
 }
 
 void initCC1101() {
-  Serial.println("{\"type\": \"status\", \"msg\": \"Initializing CC1101...\"}");
+  sendJsonStatus("Initializing CC1101...", "status");
 
   // SPI Init
   ELECHOUSE_cc1101.setSpiPin(CC1101_SCK, CC1101_MISO, CC1101_MOSI, CC1101_CSN);
@@ -837,8 +847,7 @@ void initCC1101() {
 
   ELECHOUSE_cc1101.SetRx();
   cc1101Initialized = true;
-  Serial.println("{\"type\": \"status\", \"msg\": \"CC1101 Ready (RX Mode "
-                 "433.92MHz)\"}");
+  sendJsonStatus("CC1101 Ready (433.92MHz)");
 }
 
 // Analyzer Globals
@@ -900,8 +909,7 @@ void startAnalyzer() {
   attachInterrupt(digitalPinToInterrupt(CC1101_GDO0), analyzerISR, CHANGE);
 
   analyzerEnabled = true;
-  Serial.println(
-      "{\"type\": \"status\", \"msg\": \"Sub-GHz Analyzer Started\"}");
+  sendJsonStatus("Sub-GHz Analyzer Started");
 }
 
 void stopAnalyzer() {
@@ -913,8 +921,7 @@ void stopAnalyzer() {
   // Restore Packet Mode (Default for library)
   ELECHOUSE_cc1101.SpiWriteReg(CC1101_PKTCTRL0, 0x05); // Variable packet length
 
-  Serial.println(
-      "{\"type\": \"status\", \"msg\": \"Sub-GHz Analyzer Stopped\"}");
+  sendJsonStatus("Sub-GHz Analyzer Stopped");
 }
 
 void runAnalyzerLoop() {
@@ -1037,7 +1044,7 @@ void scanNFC() {
       }
     }
   } else {
-    Serial.println("{\"type\": \"error\", \"msg\": \"No Tag Found\"}");
+    sendJsonStatus("No Tag Found", "error");
   }
 }
 
