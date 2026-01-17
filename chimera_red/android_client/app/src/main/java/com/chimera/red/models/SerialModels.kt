@@ -31,6 +31,7 @@ data class SerialMessage(
     @SerializedName("key_version") val keyVersion: Int? = null, // Key Descriptor Version (1=MD5, 2=SHA1)
     
     // NFC / General Data
+    @SerializedName("uid") val uid: String? = null,       // NFC Tag UID
     @SerializedName("data") val data: String? = null,
     
     // Analyzer Data

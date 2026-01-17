@@ -19,23 +19,48 @@ object SerialDataHandler {
 
     private fun process(json: String) {
         try {
-            // If it's not JSON, just log it
+            // ALWAYS log raw non-JSON messages (debug info)
             if (!json.trim().startsWith("{")) {
                 ChimeraRepository.addLog(json)
                 return
             }
 
-            // Try to parse as SerialMessage
+            // Parse message
             val msg = gson.fromJson(json, SerialMessage::class.java)
 
-            // 1. Log the 'msg' field if present (e.g. "Scanning...")
-            if (!msg.msg.isNullOrEmpty()) {
-                ChimeraRepository.addLog(msg.msg)
+            // --- VERBOSE REAL-TIME LOGGING ---
+            
+            // 1. Explicit Status/Error Logging
+            if (msg.type == "status") {
+                ChimeraRepository.addLog("STATUS: ${msg.data ?: "Unknown"}")
+            } else if (msg.type == "error") {
+                ChimeraRepository.addLog("ERROR: ${msg.data ?: "Unknown"}")
+            }
+            // 2. Scan Results (Summarized to avoid spam)
+            else if (msg.type == "ble_scan_result") {
+                val count = msg.count ?: msg.devices?.size ?: 0
+                ChimeraRepository.addLog("BLE SCAN: Found $count devices")
+            } else if (msg.type == "wifi_scan_result" || !msg.networks.isNullOrEmpty()) {
+                val count = msg.networks?.size ?: 0
+                ChimeraRepository.addLog("WIFI SCAN: Found $count networks")
+            }
+            // 3. Loot/Attacks (High visibility)
+            else if (msg.type == "wifi_handshake" || msg.type == "handshake") {
+                 ChimeraRepository.addLog("!!! HANDSHAKE CAPTURED: ${msg.ssid ?: msg.bssid} !!!")
+            } else if (msg.type == "nfc_found") {
+                 ChimeraRepository.addLog("NFC TAG DETECTED: ${msg.uid ?: "Unknown"}")
+            }
+            // 4. Default Fallback: Log generic messages or unknown types
+            else if (!msg.msg.isNullOrEmpty()) {
+                ChimeraRepository.addLog("MSG: ${msg.msg}")
+            } else if (msg.type != null) {
+                // Unknown structured message
+               ChimeraRepository.addLog("EVENT: ${msg.type} ${msg.data ?: ""}")
             }
 
-            // 2. Route Data to Repository
+            // --- DATA ROUTING (Existing Logic) ---
+
             msg.networks?.let { networks ->
-                // STICT FILTER: Only allow valid networks to reach the DB/UI
                 val validNetworks = networks.filter { 
                     !it.ssid.isNullOrEmpty() || !it.bssid.isNullOrEmpty() 
                 }
@@ -51,16 +76,9 @@ object SerialDataHandler {
             }
             msg.pulses?.let { ChimeraRepository.appendAnalyzerData(it) }
             
-            // 3. Log Scan Data or Payloads if they appear in generic fields
-            if (!msg.data.isNullOrEmpty()) {
-                ChimeraRepository.addLog("DATA: ${msg.data}")
-            }
-
-            // 4. Capture Handling (Loot Gallery)
+            // Capture Handling
             if (msg.type == "wifi_handshake" || msg.type == "handshake") {
-                // Build a comprehensive handshake data object for cracking
                 val handshakeData = buildHandshakeJson(msg)
-                
                 ChimeraRepository.addCapture(
                     type = "WIFI_HANDSHAKE",
                     ssid = msg.ssid,
@@ -68,16 +86,7 @@ object SerialDataHandler {
                     channel = msg.ch,
                     data = handshakeData
                 )
-                
-                // Log with quality indicator
-                val quality = when {
-                    !msg.anonce.isNullOrEmpty() && !msg.snonce.isNullOrEmpty() && !msg.mic.isNullOrEmpty() -> "COMPLETE"
-                    !msg.anonce.isNullOrEmpty() || !msg.snonce.isNullOrEmpty() -> "PARTIAL"
-                    else -> "MINIMAL"
-                }
-                ChimeraRepository.addLog("HANDSHAKE CAPTURED [$quality]: ${msg.ssid ?: msg.bssid ?: "Unknown"}")
             } else if (!msg.payload.isNullOrEmpty()) {
-                // Generic payload capture (NFC, etc.)
                 ChimeraRepository.addCapture(
                     type = msg.type ?: "UNKNOWN",
                     ssid = msg.ssid,
@@ -85,9 +94,7 @@ object SerialDataHandler {
                     channel = msg.ch,
                     data = msg.payload
                 )
-                ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: msg.bssid ?: "Unknown Source"}")
             } else if (msg.type == "recon") {
-                // Passive discovery (Wardriving)
                 msg.ssid?.let { ssid ->
                     ChimeraRepository.updateNetworks(listOf(
                         WifiNetwork(
@@ -95,17 +102,14 @@ object SerialDataHandler {
                             bssid = msg.bssid,
                             rssi = msg.rssi ?: 0,
                             channel = msg.ch ?: 0,
-                            encryption = 0 // Unknown in passive
+                            encryption = 0
                         )
                     ))
                 }
-            } else if (!msg.payload.isNullOrEmpty()) {
-                ChimeraRepository.addLog("PAYLOAD: ${msg.payload}")
             }
 
         } catch (e: Exception) {
-            // Failed to parse, log the raw string
-            // Often happens with partial lines or non-JSON debug output
+            // Failed to parse, log raw
             ChimeraRepository.addLog(json)
         }
     }

