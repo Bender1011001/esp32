@@ -1,12 +1,12 @@
 # Firmware (ESP-IDF)
 
 ## Status
-- **Working**: Display (ST7789), Serial Comm (USB-CDC), WiFi Scan.
-- **Broken**: Deauth Injection (Error 258), CC1101 active transmission.
+- **Working**: Display (ST7789), Serial Comm (USB-CDC), WiFi Scan, **Deauth Injection (FIXED!)**, Promiscuous Sniffing.
+- **Broken**: CC1101 active transmission (needs calibration).
 
 ## Tech Stack
-- **SDK**: ESP-IDF v5.2
-- **Build System**: CMake / `idf.py`
+- **SDK**: ESP-IDF v5.2 (via PlatformIO)
+- **Build System**: CMake / `pio run`
 - **Language**: C11 (Strict)
 
 ## Key Files
@@ -40,7 +40,14 @@
 - **Arduino APIs**: Do not use `Serial.print()`, `digitalWrite()`, etc. Use `esp_rom_gpio_pad_select_gpio`, `gpio_set_level`.
 - **Blocking**: No `vTaskDelay` inside `wifi_manager.c` callbacks.
 
+## Trap Diary
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| Deauth TX Failed: 258 | ESP-IDF blob blocks management frames via `ieee80211_raw_frame_sanity_check` | Override function with stub returning 0 + linker flag `-Wl,-zmuldefs` |
+| "unsupport frame type: 0c0" | Same as above - driver validation | Same fix |
+| MAC Spoof Failed: 12293 | Set MAC while WiFi running | Stop WiFi, set MAC, restart |
+
 ## Build / Verify
 ```bash
-idf.py build
+pio run -e esp32s3-idf
 ```
