@@ -25,6 +25,7 @@ import com.chimera.red.UsbSerialManager
 import com.chimera.red.RetroGreen
 import com.chimera.red.models.SerialMessage
 import com.chimera.red.ui.theme.Dimens
+import com.chimera.red.ui.components.SpectrumCanvas
 import com.google.gson.Gson
 import kotlinx.coroutines.launch
 
@@ -60,14 +61,17 @@ fun SubGhzScreen(usbManager: UsbSerialManager) {
                     if (message.msg?.contains("Buffer Empty") == true) {
                         hasRecording = false
                     }
-                    if (message.msg?.contains("Replay Complete") == true) {
-                         // replay finished
-                    }
-                    // Hacky check for record done? Currently firmware doesn't say "Record Done", it likely just captures once or waits?
-                    // Actually handleRxRecord resets buffer and waits. Ideally it should send "Captured" when signal received.
-                    // For now we assume "Recording..." means listening.
                 }
             } catch (e: Exception) { }
+        }
+    }
+    
+    // Listen for High-Speed COBS Spectrum Data
+    LaunchedEffect(Unit) {
+        usbManager.spectrumData.collect { bytes ->
+            // Convert signed bytes to unsigned ints (0-255)
+            val ints = bytes.map { it.toInt() and 0xFF }
+            ChimeraRepository.appendAnalyzerData(ints)
         }
     }
 
@@ -122,29 +126,11 @@ fun SubGhzScreen(usbManager: UsbSerialManager) {
                     .border(Dimens.BorderThin, RetroGreen, RectangleShape)
                     .background(Color.Black.copy(alpha = 0.5f))
             ) {
-               Canvas(modifier = Modifier.fillMaxSize()) {
-                    val midY = size.height / 2
-                    drawLine(RetroGreen.copy(0.2f), Offset(0f, midY), Offset(size.width, midY))
-                    
-                    val timeScale = 0.05f 
-                    val dataToDraw = analyzerData.takeLast(500)
-                    var currentX = 0f
-                    
-                    if (dataToDraw.isNotEmpty()) {
-                         val path = Path()
-                         val startY = if (dataToDraw.first() > 0) midY - 50f else midY + 50f
-                         path.moveTo(0f, startY)
-                         dataToDraw.forEach { duration ->
-                            val isHigh = duration > 0
-                            val pulseWidth = kotlin.math.abs(duration) * timeScale
-                            val y = if (isHigh) midY - 50f else midY + 50f
-                            path.lineTo(currentX, y) 
-                            currentX += pulseWidth
-                            path.lineTo(currentX, y)
-                        }
-                        drawPath(path, RetroGreen, style = Stroke(2.dp.toPx()))
-                    }
-               }
+               // Render using High-Performance SurfaceView
+               SpectrumCanvas(
+                   spectrumData = analyzerData,
+                   modifier = Modifier.fillMaxSize()
+               )
                
                if (isAnalyzerRunning) {
                    Text("CAPTURING...", color = RetroGreen, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp))

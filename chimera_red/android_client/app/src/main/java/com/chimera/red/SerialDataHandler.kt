@@ -34,8 +34,21 @@ object SerialDataHandler {
             }
 
             // 2. Route Data to Repository
-            msg.networks?.let { ChimeraRepository.updateNetworks(it) }
-            msg.devices?.let { ChimeraRepository.updateBleDevices(it) }
+            msg.networks?.let { networks ->
+                // STICT FILTER: Only allow valid networks to reach the DB/UI
+                val validNetworks = networks.filter { 
+                    !it.ssid.isNullOrEmpty() || !it.bssid.isNullOrEmpty() 
+                }
+                if (validNetworks.isNotEmpty()) {
+                    ChimeraRepository.updateNetworks(validNetworks)
+                }
+            }
+            msg.devices?.let { devices ->
+                val validDevices = devices.filter { !it.address.isNullOrEmpty() }
+                if (validDevices.isNotEmpty()) {
+                    ChimeraRepository.updateBleDevices(validDevices)
+                }
+            }
             msg.pulses?.let { ChimeraRepository.appendAnalyzerData(it) }
             
             // 3. Log Scan Data or Payloads if they appear in generic fields
@@ -44,18 +57,35 @@ object SerialDataHandler {
             }
 
             // 4. Capture Handling (Loot Gallery)
-            if (msg.type == "wifi_handshake" || msg.type == "handshake" || !msg.payload.isNullOrEmpty()) {
-                val payloadData = msg.payload ?: msg.data ?: ""
-                if (payloadData.isNotEmpty() || msg.type == "handshake") {
-                    ChimeraRepository.addCapture(
-                        type = if (msg.type == "handshake") "WIFI_HANDSHAKE" else (msg.type ?: "WIFI_HANDSHAKE"),
-                        ssid = msg.ssid,
-                        bssid = msg.bssid,
-                        channel = msg.ch,
-                        data = payloadData
-                    )
-                    ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: msg.bssid ?: "Unknown Source"}")
+            if (msg.type == "wifi_handshake" || msg.type == "handshake") {
+                // Build a comprehensive handshake data object for cracking
+                val handshakeData = buildHandshakeJson(msg)
+                
+                ChimeraRepository.addCapture(
+                    type = "WIFI_HANDSHAKE",
+                    ssid = msg.ssid,
+                    bssid = msg.bssid,
+                    channel = msg.ch,
+                    data = handshakeData
+                )
+                
+                // Log with quality indicator
+                val quality = when {
+                    !msg.anonce.isNullOrEmpty() && !msg.snonce.isNullOrEmpty() && !msg.mic.isNullOrEmpty() -> "COMPLETE"
+                    !msg.anonce.isNullOrEmpty() || !msg.snonce.isNullOrEmpty() -> "PARTIAL"
+                    else -> "MINIMAL"
                 }
+                ChimeraRepository.addLog("HANDSHAKE CAPTURED [$quality]: ${msg.ssid ?: msg.bssid ?: "Unknown"}")
+            } else if (!msg.payload.isNullOrEmpty()) {
+                // Generic payload capture (NFC, etc.)
+                ChimeraRepository.addCapture(
+                    type = msg.type ?: "UNKNOWN",
+                    ssid = msg.ssid,
+                    bssid = msg.bssid,
+                    channel = msg.ch,
+                    data = msg.payload
+                )
+                ChimeraRepository.addLog("LOOT CAPTURED: ${msg.ssid ?: msg.bssid ?: "Unknown Source"}")
             } else if (msg.type == "recon") {
                 // Passive discovery (Wardriving)
                 msg.ssid?.let { ssid ->
@@ -78,5 +108,34 @@ object SerialDataHandler {
             // Often happens with partial lines or non-JSON debug output
             ChimeraRepository.addLog(json)
         }
+    }
+    
+    /**
+     * Builds a JSON string containing all handshake data for persistence.
+     * This format is compatible with WpaHandshake.fromMap() in the CrackingEngine.
+     */
+    private fun buildHandshakeJson(msg: SerialMessage): String {
+        val map = mutableMapOf<String, Any?>()
+        
+        // Required fields
+        msg.ssid?.let { map["ssid"] = it }
+        msg.bssid?.let { map["bssid"] = it }
+        msg.staMac?.let { map["sta_mac"] = it }
+        
+        // Cryptographic material
+        msg.anonce?.let { map["anonce"] = it }
+        msg.snonce?.let { map["snonce"] = it }
+        msg.mic?.let { map["mic"] = it }
+        msg.eapol?.let { map["eapol"] = it }
+        
+        // Metadata
+        msg.keyVersion?.let { map["key_version"] = it }
+        msg.ch?.let { map["channel"] = it }
+        
+        // Legacy fallback data
+        msg.payload?.let { map["payload"] = it }
+        msg.data?.let { map["raw_data"] = it }
+        
+        return gson.toJson(map)
     }
 }

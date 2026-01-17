@@ -1,95 +1,46 @@
-# Chimera Red - Firmware
+# Firmware (ESP-IDF)
 
-ESP32-S3 firmware for the Chimera Red multi-radio reconnaissance platform.
+## Status
+- **Working**: Display (ST7789), Serial Comm (USB-CDC), WiFi Scan.
+- **Broken**: Deauth Injection (Error 258), CC1101 active transmission.
 
-## Features
-- **WiFi**: Scanning, Promiscuous mode, Deauthentication, CSI Radar
-- **BLE**: Scanning, Advertisement Spamming
-- **Sub-GHz**: CC1101 433/868 MHz RX/TX with signal replay
-- **NFC**: PN532 Mifare Classic read/emulate
+## Tech Stack
+- **SDK**: ESP-IDF v5.2
+- **Build System**: CMake / `idf.py`
+- **Language**: C11 (Strict)
 
-## Architecture
+## Key Files
+- `main/main.c` — System init and command loop.
+- `main/wifi_manager.c` — Promiscuous mode & Packet Injection.
+- `main/display.c` — ST7789 low-level driver (SPI).
+- `CMakeLists.txt` — Project build config.
 
-### Radio Mode Management (`main.cpp`)
-Centralized `setRadioMode(RadioMode mode)` function handles WiFi state transitions:
+## Architecture Quirks
+- **Native USB**: We use the built-in USB-Serial-JTAG peripheral, NOT the UART bridge. This means `printf` goes to a different buffer than `UART0`.
+- **Interrupts**: The WiFi sniffer callback runs in ISR context. DO NOT do heavy processing there. Queue it.
 
-```cpp
-enum class RadioMode {
-  Off,         // WiFi disabled
-  Station,     // Normal STA mode for scanning
-  Promiscuous  // Raw packet capture mode (sniffing, CSI, spectrum)
-};
+## Hardware Pinout (IMMUTABLE TRUTH)
+| Signal | GPIO | Note |
+|--------|------|------|
+| TFT_MOSI | 7 | SPI2 |
+| TFT_SCLK | 6 | SPI2 |
+| TFT_CS | 15 | |
+| TFT_DC | 16 | |
+| TFT_RST | 17 | |
+| TFT_BL | 21 | Backlight |
+| BTN_UP | 14 | |
+| BTN_DOWN | 47 | |
+| BTN_SEL | 0 | Boot Button |
+| CC1101_CS | 10 | SPI3 |
+| CC1101_MOSI | 11 | SPI3 |
+| CC1101_MISO | 13 | SPI3 |
+| CC1101_SCLK | 12 | SPI3 |
 
-bool setRadioMode(RadioMode mode);
-```
+## Anti-Patterns
+- **Arduino APIs**: Do not use `Serial.print()`, `digitalWrite()`, etc. Use `esp_rom_gpio_pad_select_gpio`, `gpio_set_level`.
+- **Blocking**: No `vTaskDelay` inside `wifi_manager.c` callbacks.
 
-### NFC Emulation (True Spoofing)
-- **Pins**: Reassigned to GPIO 4 (IRQ) and 5 (RST) to avoid conflict with TFT (16/17). I2C uses generic 1 (SDA) / 2 (SCL).
-- **Protocol**: Direct PN532 command injection (`0x8C TgInitAsTarget`) is now used instead of the limited library method.
-- **Capability**: Can now clone and emulate a specific UID captured from a card, rather than using the hardcoded default.
-
-**Benefits:**
-- Prevents "stuck" radio states by cleaning up previous mode before transitioning
-- Single point of control for all WiFi mode changes
-- JSON status logging for debugging (`{"type": "radio_mode", "mode": "..."}`)
-
-**Used by:**
-- `enableCSI()` - Switches to Promiscuous for CSI collection
-- `startSniffing()` - Switches to Promiscuous for handshake capture
-- `stopSniffing()` - Returns to Station mode
-- `runSpectrumScan()` - Temporarily uses Promiscuous, then restores Station
-
-### Dual-Core Architecture
-- **Core 0**: RadioTask (async WiFi/BLE operations)
-- **Core 1**: Main loop (serial commands, display, slow peripherals)
-
-## Building
-
+## Build / Verify
 ```bash
-cd firmware
-pio run
-pio run -t upload
+idf.py build
 ```
-
-## Wiring
-See [WIRING_GUIDE.md](../WIRING_GUIDE.md) for detailed pin mappings (SPI/I2C).
-
-## Serial Commands
-- `SCAN_WIFI`: Returns JSON list of networks.
-- `SCAN_BLE`: Returns JSON list of BLE devices.
-- `ANALYZER_START`: Starts Sub-GHz Logic Analyzer stream.
-- `ANALYZER_STOP`: Stops Logic Analyzer.
-- `SNIFF_START <ch>`: Starts promiscuous mode (monitor + packet injection).
-- `SNIFF_STOP`: Stops sniffing.
-- `CMD_SPECTRUM`: Runs 2.4GHz spectrum sweep.
-- `START_CSI` / `STOP_CSI`: Controls CSI data stream.
-| Command | Description |
-|---------|-------------|
-| `DEAUTH:<BSSID>` | Send deauth packets |
-| `BLE_SPAM` | Broadcast fake BLE advertisements |
-| `INIT_CC1101` | Initialize Sub-GHz radio |
-| `SET_FREQ:<MHz>` | Tune CC1101 frequency |
-| `RX_RECORD` | Record Sub-GHz signal |
-| `TX_REPLAY` | Replay recorded signal |
-| `NFC_SCAN` | Scan for NFC tags |
-| `NFC_EMULATE` | Emulate captured UID |
-
-## Last Audit
-- **Date**: 2026-01-14
-- **Auditor**: Antigravity
-- **Status**: Fixed - Resolved BOOT crash caused by GPIO 35/36 conflict with PSRAM (TFT pins moved to 11/12). Added PSRAM build flag.
-- **Date**: 2026-01-14 (Session 2)
-- **Auditor**: Antigravity
-- **Status**: Fixed - Resolved persistent reboot loop/crash caused by TFT utilizing GPIO 11/12 (which conflict with ESP32-S3 internal SPI0 Flash/PSRAM).
-  - **Resolution**: Moved TFT SPI pins to safe GPIOs: **MOSI=7**, **SCK=6**.
-  - **Action Required**: Physical rewiring of TFT display.
-  - **Status**: Firmware boots successfully, Serial commands active, GUI enabled (waiting for rewire).
-- **Date**: 2026-01-14 (Session 3)
-- **Auditor**: Antigravity
-- **Status**: Fixed - Resolved "App Connection Failed" issue.
-  - **Issue**: `TFT_eSPI` was forcing HSPI usage while sharing pins with `CC1101` (using default SPI/FSPI), causing bus conflict/hang on boot.
-  - **Resolution**: Removed `-DUSE_HSPI_PORT=1` from `platformio.ini` to enforce shared usage of the default SPI bus.
-  - **Status**: Flashed successfully to ESP32-S3 on COM3.
-
-
-

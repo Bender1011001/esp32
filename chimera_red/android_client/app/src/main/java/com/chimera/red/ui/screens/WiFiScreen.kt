@@ -26,6 +26,8 @@ import com.chimera.red.ui.theme.Dimens
 import com.chimera.red.ui.components.CrackingDialog
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun WiFiScreen(usbManager: UsbSerialManager) {
@@ -39,14 +41,30 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
     var selectedNetwork by remember { mutableStateOf<WifiNetwork?>(null) }
 
     // State for Cracker
+    // State for Cracker
     var showCracker by remember { mutableStateOf(false) }
     var crackerSsid by remember { mutableStateOf("") }
+    
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(lastUpdate) {
         if (isScanning && lastUpdate > 0) {
             isScanning = false
         }
     }
+
+    // Capture Feedback
+    val snackbarHostState = remember { SnackbarHostState() }
+    val capturesSize = ChimeraRepository.captures.size
+    
+    LaunchedEffect(capturesSize) {
+        if (capturesSize > 0) {
+            val last = ChimeraRepository.captures.last()
+            snackbarHostState.showSnackbar("Captured: ${last.ssid ?: "Unknown"}")
+        }
+    }
+    
+    Box(Modifier.fillMaxSize()) {
 
     // Detail Dialog
     if (selectedNetwork != null) {
@@ -55,7 +73,7 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
             onDismissRequest = { selectedNetwork = null },
             title = {
                 Column {
-                    Text(text = net.ssid.ifEmpty { "<HIDDEN>" }, style = MaterialTheme.typography.titleLarge, color = RetroGreen)
+                    Text(text = net.ssid?.ifEmpty { "<HIDDEN>" } ?: "<HIDDEN>", style = MaterialTheme.typography.titleLarge, color = RetroGreen)
                     Text(text = net.bssid ?: "Unknown MAC", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Monospace)
                 }
             },
@@ -78,14 +96,16 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                     
                     Text("Actions", style = MaterialTheme.typography.titleSmall, color = RetroGreen)
                     
-                    // Action Grid
+                    // Action Feedback
                     var isCapturing by remember { mutableStateOf(false) }
+                    var lastAction by remember { mutableStateOf("") }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { 
                                 val target = net.bssid ?: net.ssid
                                 usbManager.write("DEAUTH:$target") 
+                                lastAction = "DEAUTH PACKET SENT!"
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
                             modifier = Modifier.weight(1f)
@@ -96,10 +116,18 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                         Button(
                             onClick = { 
                                 isCapturing = true
-                                usbManager.write("SNIFF_START:${net.channel}")
-                                // Send deauth shortly after to trigger handshake
-                                val target = net.bssid ?: net.ssid
-                                usbManager.write("DEAUTH:$target")
+                                scope.launch {
+                                    usbManager.write("SNIFF_START:${net.channel}")
+                                    // Delay to allow channel switch
+                                    delay(500)
+                                    val target = net.bssid ?: net.ssid
+                                    if (!target.isNullOrEmpty()) {
+                                        usbManager.write("DEAUTH:$target")
+                                        lastAction = "AUTO-CAPTURE STARTED"
+                                    } else {
+                                        lastAction = "INVALID TARGET"
+                                    }
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.2f)),
                             modifier = Modifier.weight(1f)
@@ -110,13 +138,24 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                         Button(
                             onClick = { 
                                 usbManager.write("SNIFF_START:${net.channel}")
-                                selectedNetwork = null // Close to show logs?
+                                lastAction = "MONITORING CHANNEL ${net.channel}"
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.2f)),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("SNIFF", color = RetroGreen, fontSize = 10.sp)
                         }
+                    }
+                    
+                    if (lastAction.isNotEmpty()) {
+                         Spacer(Modifier.height(4.dp))
+                         Text(
+                             text = "> $lastAction",
+                             style = MaterialTheme.typography.labelSmall,
+                             color = Color.Yellow,
+                             fontFamily = FontFamily.Monospace,
+                             modifier = Modifier.align(Alignment.CenterHorizontally)
+                         )
                     }
 
                     Spacer(Modifier.height(8.dp))
@@ -127,11 +166,12 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                     Button(
                         onClick = { 
                             if (hasHandshake) {
-                                crackerSsid = net.ssid
+                                crackerSsid = net.ssid ?: ""
                                 showCracker = true
                                 selectedNetwork = null
                             } else {
                                 ChimeraRepository.addLog("Handshake required for ${net.ssid}")
+                                lastAction = "HANDSHAKE REQUIRED!"
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -180,7 +220,7 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
             Button(
                 onClick = { 
                     isScanning = true
-                    ChimeraRepository.updateNetworks(emptyList()) 
+                    ChimeraRepository.clearNetworks()
                     usbManager.write("SCAN_WIFI") 
                 },
                 enabled = !isScanning,
@@ -214,6 +254,7 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
             }
         }
     }
+    }
 }
 
 @Composable
@@ -230,7 +271,7 @@ fun NetworkCard(network: WifiNetwork, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = network.ssid.ifEmpty { "<HIDDEN>" },
+                    text = network.ssid?.ifEmpty { "<HIDDEN>" } ?: "<HIDDEN>",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = RetroGreen

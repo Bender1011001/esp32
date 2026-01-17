@@ -1,0 +1,56 @@
+# OS & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.iml
+
+# Android
+.gradle/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ESP-IDF / Firmware / PlatformIO
+sdkconfig
+sdkconfig.old
+firmware/build/
+firmware/managed_components/
+.pio/
+lib/
+.sconsign*
+*.elf
+*.map
+*.o
+*.a
+*.bin
+*.hex
+bootloader.bin
+partitions.bin
+
+# Legacy / Large Archives
+legacy/
+bugreport*
+
+# Node / Web
+node_modules/
+npm-debug.log
+
+# Generic Large Files & Archives
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.iso
+*.img
+*.mp4
+*.mov
+*.avi
+*.db
+*.sqlite
+
+# EXCEPTIONS - TRACK THESE BINARIES
+!*.apk

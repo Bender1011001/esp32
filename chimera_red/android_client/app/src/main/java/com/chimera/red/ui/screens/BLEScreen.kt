@@ -178,14 +178,14 @@ fun BleDeviceCard(device: BleDevice) {
                     color = RetroGreen
                 )
                 Text(
-                    text = device.address,
+                    text = device.address ?: "00:00:00:00:00:00",
                     style = MaterialTheme.typography.bodySmall,
                     color = RetroGreen.copy(alpha = 0.7f)
                 )
             }
             
             Text(
-                text = "${device.rssi} dBm",
+                text = "${device.rssi ?: 0} dBm",
                 style = MaterialTheme.typography.bodyMedium,
                 color = RetroGreen
             )

@@ -22,6 +22,14 @@ data class SerialMessage(
     @SerializedName("ch") val ch: Int? = null, // Firmware uses 'ch' for handshake
     @SerializedName("payload") val payload: String? = null,
     
+    // WPA2 Handshake Data (for MIC verification)
+    @SerializedName("sta_mac") val staMac: String? = null,      // Station MAC address
+    @SerializedName("anonce") val anonce: String? = null,       // Authenticator Nonce (32 bytes hex)
+    @SerializedName("snonce") val snonce: String? = null,       // Supplicant Nonce (32 bytes hex)
+    @SerializedName("mic") val mic: String? = null,             // Message Integrity Code (16 bytes hex)
+    @SerializedName("eapol") val eapol: String? = null,         // Full EAPOL frame (hex)
+    @SerializedName("key_version") val keyVersion: Int? = null, // Key Descriptor Version (1=MD5, 2=SHA1)
+    
     // NFC / General Data
     @SerializedName("data") val data: String? = null,
     
@@ -33,19 +41,19 @@ data class SerialMessage(
 )
 
 data class WifiNetwork(
-    @SerializedName("ssid") val ssid: String,
-    @SerializedName("bssid") val bssid: String?,
-    @SerializedName("rssi") val rssi: Int,
-    @SerializedName("channel") val channel: Int,
-    @SerializedName("encryption") val encryption: Int,
+    @SerializedName("ssid") val ssid: String? = null,
+    @SerializedName("bssid") val bssid: String? = null,
+    @SerializedName("rssi") val rssi: Int? = null,
+    @SerializedName("channel") val channel: Int? = null,
+    @SerializedName("encryption") val encryption: Int? = null,
     var lat: Double? = null,
     var lon: Double? = null
 )
 
 data class BleDevice(
-    @SerializedName("name") val name: String?,
-    @SerializedName("address") val address: String,
-    @SerializedName("rssi") val rssi: Int,
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("address") val address: String? = null,
+    @SerializedName("rssi") val rssi: Int? = null,
     var lat: Double? = null,
     var lon: Double? = null
 )

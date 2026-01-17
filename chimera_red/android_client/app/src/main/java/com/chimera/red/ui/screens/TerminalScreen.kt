@@ -20,6 +20,9 @@ import com.chimera.red.UsbSerialManager
 import com.chimera.red.RetroGreen
 import com.chimera.red.ui.theme.Dimens
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun TerminalScreen(usbManager: UsbSerialManager) {
@@ -28,8 +31,10 @@ fun TerminalScreen(usbManager: UsbSerialManager) {
     val logMessages = ChimeraRepository.terminalLogs
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
-    // Subscribe to incoming data
     // Subscribe to incoming data - AUTO SCROLL when logs change
     LaunchedEffect(logMessages.size) {
         if (logMessages.isNotEmpty()) {
@@ -42,6 +47,43 @@ fun TerminalScreen(usbManager: UsbSerialManager) {
             .fillMaxSize()
             .padding(Dimens.SpacingMd)
     ) {
+        // Header Actions
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            Text("SERIAL OUTPUT", color = RetroGreen, fontFamily = FontFamily.Monospace)
+            
+            Row {
+                Button(
+                    onClick = { ChimeraRepository.clearLogs() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.3f)),
+                    modifier = Modifier.height(30.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("CLEAR", fontSize = 10.sp, color = RetroGreen)
+                }
+                
+                Spacer(Modifier.width(8.dp))
+                
+                Button(
+                    onClick = { 
+                        val allText = logMessages.joinToString("\n") { 
+                           "[${Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalTime()}] ${it.message}" 
+                        }
+                        clipboardManager.setText(AnnotatedString(allText))
+                        android.widget.Toast.makeText(context, "Logs Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.3f)),
+                    modifier = Modifier.height(30.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("COPY", fontSize = 10.sp, color = RetroGreen)
+                }
+            }
+        }
+
         // Output Area
         Card(
             modifier = Modifier

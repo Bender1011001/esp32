@@ -137,33 +137,43 @@ object ChimeraRepository {
         if (newNetworks.isEmpty()) return // Don't clear DB on empty scan, only insert found
         
         repoScope.launch {
-            val entities = newNetworks.map { 
-                NetworkEntity(
-                    bssid = it.bssid ?: it.ssid, 
-                    ssid = it.ssid,
-                    rssi = it.rssi,
-                    channel = it.channel,
-                    encryption = it.encryption,
-                    lat = if (hasLocation) currentLat else null,
-                    lon = if (hasLocation) currentLon else null
-                )
+            val entities = newNetworks
+                .map { 
+                    NetworkEntity(
+                        bssid = it.bssid ?: it.ssid ?: "UNKNOWN_BSSID", 
+                        ssid = it.ssid ?: "<HIDDEN>",
+                        rssi = it.rssi ?: 0,
+                        channel = it.channel ?: 0,
+                        encryption = it.encryption ?: 0,
+                        lat = if (hasLocation) currentLat else null,
+                        lon = if (hasLocation) currentLon else null
+                    )
+                }
+                .filter { it.bssid != "UNKNOWN_BSSID" } // Final safety check
+                
+            if (entities.isNotEmpty()) {
+                dao?.insertNetworks(entities)
             }
-            dao?.insertNetworks(entities)
         }
     }
     
     fun updateBleDevices(newDevices: List<BleDevice>) {
          repoScope.launch {
-            val entities = newDevices.map { 
-                BleDeviceEntity(
-                    address = it.address,
-                    name = it.name,
-                    rssi = it.rssi,
-                    lat = if (hasLocation) currentLat else null,
-                    lon = if (hasLocation) currentLon else null
-                )
+            val entities = newDevices
+                .map { 
+                    BleDeviceEntity(
+                        address = it.address ?: "UNKNOWN_ADDR",
+                        name = it.name ?: "<UNKNOWN>",
+                        rssi = it.rssi ?: 0,
+                        lat = if (hasLocation) currentLat else null,
+                        lon = if (hasLocation) currentLon else null
+                    )
+                }
+                .filter { it.address != "UNKNOWN_ADDR" }
+
+            if (entities.isNotEmpty()) {
+                dao?.insertBleDevices(entities)
             }
-            dao?.insertBleDevices(entities)
         }
     }
 
@@ -208,6 +218,12 @@ object ChimeraRepository {
     fun clearLogs() {
         repoScope.launch {
             dao?.clearLogs()
+        }
+    }
+
+    fun clearNetworks() {
+        repoScope.launch {
+            dao?.clearNetworks()
         }
     }
 }

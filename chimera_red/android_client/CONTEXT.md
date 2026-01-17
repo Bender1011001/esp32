@@ -1,84 +1,36 @@
-# Chimera Red - Android Client
+# Android Client (BenderOS)
 
-This is a native Android application for Chimera Red, replacing the web client.
-It uses **USB OTG Serial** to communicate with the ESP32-S3 firmware, ensuring robust connection and allowing the ESP32 to retain full BLE Scanning capabilities.
-
-### Key Features
-- **USB Serial Communication**: Uses `usb-serial-for-android` to communicate with ESP32-S3.
-- **Robust JSON Parsing**: Implemented `Gson` for type-safe, resilient handling of firmware messages (Handshakes, NFC, Scans).
-- **Crypto-Accurate Cracking**: Includes a specialized `CrackingEngine` that performs real PBKDF2-HMAC-SHA1 operations on the CPU, replacing legacy simulations.
-- **Material3 UI**: Modern Compose-based interface with a "Planet Express" Green theme.
-- **Real-time Navigation**: Tabs for Dashboard, WiFi, BLE, NFC, Sub-GHz, and Terminal.ces)
-  - Spectrum Analyzer (Traffic Density)
-  - CSI Radar (Visualization)
-  - Logic Analyzer (Sub-GHz Signal Visualizer)
-
-## Architecture
-
-### UI Theme System (`ui/theme/Dimens.kt`)
-Centralized dimension constants for consistent, scalable UI across different screen sizes:
-- **Spacing**: `SpacingXs` (4dp), `SpacingSm` (8dp), `SpacingMd` (16dp), `SpacingLg` (24dp), `SpacingXl` (32dp)
-- **Component Sizes**: `IconSizeMd` (40dp), `ButtonSizeLg` (100dp), `CardHeightMd` (200dp)
-- **Borders**: `BorderHairline` (0.5dp), `BorderThin` (1dp), `BorderStandard` (2dp)
-- **Typography**: `TextCaption` (10sp), `TextBody` (12sp), `TextTitle` (20sp), `TextDisplay` (24sp)
-
-## Setup
-1. Open this folder in **Android Studio**.
-2. Connect your Android device via USB.
-3. Connect the ESP32 to the Android device via **USB OTG Adapter**.
-4. Build and Run.
+## Status
+- **Working**: 
+    - UI Navigation (Mission Control, Terminal, Dashboard).
+    - Serial Communication (COBS Protocol).
+    - Vulkan Compute Shader (PBKDF2 Benchmark).
+- **Broken**: 
+    - Recon Map (Google Maps API key missing/unrestricted).
+    - Background Service stability (needs Foreground Service type `dataSync`).
 
 ## Tech Stack
-- **Language**: Kotlin
-- **UI**: Jetpack Compose (Material 3)
-- **Serial**: `usb-serial-for-android` library
+- **Language**: Kotlin 1.9+
+- **UI**: Jetpack Compose (Material3 disabled/overridden for custom look).
+- **MinSDK**: 34 (Android 14)
+- **TargetSDK**: 34
+- **NDK**: 26.1 (Required for Vulkan shaders)
 
-## Last Audit
-- **Date**: 2026-01-14
-- **Auditor**: Antigravity
-- **Status**: Logic Analyzer Visualizer Implemented (Canvas + Serialization)
-### Centralized Data Handling
-### Centralized Data Handling
-- **SerialDataHandler**: A global singleton that listens to `UsbSerialManager` flows, parses JSON, and updates `ChimeraRepository`. This ensures data (WiFi scans, BLE packets) is captured even when the relevant UI tab is not active.
-- **ChimeraRepository**: Backed by **Room Database** to persist logs, networks, and BLE devices across app restarts.
-- **USB Permission**: Implemented `BroadcastReceiver` in `MainActivity` to automatically connect upon permission grant.
+## Key Files
+- `MainActivity.kt` — Activity entry; manages USB permission lifecycle.
+- `ui/theme/Color.kt` — The specific Amber (#FFB000) palette.
+- `data/ChimeraDatabase.kt` — Room Database definition.
+- `cpp/vulkan_cracker.cpp` — JNI Bridge for GPU logic.
 
-## Architecture
-- **Language**: Kotlin (Jetpack Compose)
-- **Navigation**: androidx.navigation with BottomNavigationView
-- **Hardware Integration**: `usb-serial-for-android` (Mik3y)
-- **Data Persistence**: **Room Database** (`ChimeraDatabase`) for Logs, Networks, and BLE Devices.
-- **Serial Protocol**: JSON-based
-    - Device -> App: `{"type": "status", "msg": "..."}` or `{"type": "wifi_scan", ...}`
-    - App -> Device: `SCAN_WIFI`, `DEAUTH:<BSSID>`, `NFC_SCAN`, `CMD_SPECTRUM`, etc.
+## Architecture Quirks
+- **Sovereignty**: The App is the "Brain". If the App crashes, the Red Team op is over. The firmware is just a puppet.
+- **Buffers**: We use `DirectByteBuffer` for serial data to avoid GC pressure during high-throughput sniffing.
 
-## Current Component Status (v1.8)
-- **Core**: Stable connection, permission handling, real-time logging (Persistent).
-- **WiFi Tab**:
-    - Scanning (SSID, BSSID, RSSI, Ch, Enc).
-    - **WiFi Passive Recon (Wardriving)**: Background task that hops channels to capture beacons and probe responses without active scanning.
-- **GPU-Hybrid Cracking**: Multi-core parallel dictionary attack for WPA2 handshakes, utilizing all available CPU cores for high-speed PBKDF2 calculation.
-- **Improved Lo-Fi HUD**: Real-time logging on the ESP32 screen with larger font and auto-scrolling.
-    - **On-Device Cracking**: Multi-threaded PBKDF2 engine for dictionary attacks.
-    - Persistent list storage.
-- **BLE Tab**: 
-    - Scanning, basic listing (Persistent).
-    - **"Bender's Curse" Console**:
-        - Spam "Bender's Pager" (General Flood)
-        - Spoof Samsung Buds (Popup trigger)
-        - Spoof Google Fast Pair
-        - Spoof Apple AirTag
-- **NFC Tab**: Read (UID/Data), Emulate trigger.
-- **Sub-GHz**: 
-    - Spectrum visualizer (Canvas), Frequency Tuner.
-    - **Logic Analyzer & Recorder**: Capture raw ASK/OOK signals and replay them.
-    - **Attacks**: 12-bit "Brute Force" Fuzzer (CAME/Nice/PT2262).
-- **Map / Wardriving**: OpenStreetMap integration to map discovered WiFi & BLE devices with GPS coordinates.
-- **Integrated**: "Full Recon" scenario script.
-- **Firmware**: ESP32-S3 custom build with `ST7789_2_DRIVER` (Fixed Fullscreen), `CC1101`, `PN532`.
+## Anti-Patterns
+- **XML Layouts**: Banned. 100% Compose.
+- **Main Thread I/O**: Strict ban. All DB/Serial ops must be in `Dispatchers.IO`.
 
-## Roadmap
-- **Security**: Encrypt DB/Captures (Android Keystore).
-- **Offline Cracking**: PBKDF2 (S24 GPU/CPU).
-- **Exports**: PCAP/PDF generation.
-
+## Build / Verify
+```bash
+./gradlew assembleDebug
+```

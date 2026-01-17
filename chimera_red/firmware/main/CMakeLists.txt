@@ -1,0 +1,22 @@
+idf_component_register(
+    SRCS 
+        "main.c"
+        "wifi_manager.c"
+        "serial_comm.c"
+        "display.c"
+        "gui.c"
+        "ble_scanner.c"
+        "nfc_pn532.c"
+        "subghz_cc1101.c"
+        "buttons.c"
+        "font5x7.c"
+    INCLUDE_DIRS "."
+    REQUIRES 
+        driver
+        esp_wifi
+        nvs_flash
+        esp_event
+        bt
+        esp_timer
+        spi_flash
+)

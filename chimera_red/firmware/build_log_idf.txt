@@ -1,0 +1,80 @@
+Processing esp32s3-idf (platform: espressif32; board: esp32-s3-devkitc-1; framework: espidf)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (6.12.0) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-espidf @ 3.50500.0 (5.5.0) 
+ - tool-cmake @ 3.30.2 
+ - tool-esp-rom-elfs @ 0.0.1+20241011 
+ - tool-esptoolpy @ 2.40900.250804 (4.9.0) 
+ - tool-idf @ 1.0.1 
+ - tool-mconf @ 1.4060000.20190628 (406.0.0) 
+ - tool-ninja @ 1.9.0 
+ - tool-riscv32-esp-elf-gdb @ 11.2.0+20220823 
+ - tool-xtensa-esp-elf-gdb @ 11.2.0+20230208 
+ - toolchain-esp32ulp @ 1.23800.240113 (2.38.0) 
+ - toolchain-riscv32-esp @ 14.2.0+20241119 
+ - toolchain-xtensa-esp-elf @ 14.2.0+20241119
+Reading CMake configuration...
+Warning! Flash memory size mismatch detected. Expected 8MB, found 16MB!
+Please select a proper value in your `sdkconfig.defaults` or via the `menuconfig` target!
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 0 compatible libraries
+Scanning dependencies...
+No dependencies
+Building in release mode
+Compiling .pio\build\esp32s3-idf\main\wifi_manager.c.o
+Archiving .pio\build\esp32s3-idf\esp-idf\app_trace\libapp_trace.a
+Compiling .pio\build\esp32s3-idf\app_update\esp_ota_app_desc.c.o
+Indexing .pio\build\esp32s3-idf\esp-idf\app_trace\libapp_trace.a
+Compiling .pio\build\esp32s3-idf\bootloader_support\src\bootloader_common.c.o
+Compiling .pio\build\esp32s3-idf\bootloader_support\src\bootloader_common_loader.c.o
+Compiling .pio\build\esp32s3-idf\bootloader_support\src\bootloader_clock_init.c.o
+In file included from main/wifi_manager.c:10:
+main/wifi_manager.c: In function 'promisc_rx_cb':
+main/wifi_manager.c:542:67: error: 'bssid_str' undeclared (first use in this function)
+  542 |         ESP_LOGI(TAG, "WPA2 Handshake captured! BSSID=%s STA=%s", bssid_str,
+      |                                                                   ^~~~~~~~~
+C:/Users/admin/.platformio/packages/framework-espidf/components/log/include/esp_log.h:220:167: note: in definition of macro 'ESP_LOG_LEVEL'
+  220 |         if (ESP_LOG_GET_LEVEL(configs)==ESP_LOG_ERROR)        { esp_log(ESP_LOG_CONFIG_INIT(ESP_LOG_ERROR),   tag, LOG_FORMAT(E, format), esp_log_timestamp(), tag, ##__VA_ARGS__); } \
+      |                                                                                                                                                                       ^~~~~~~~~~~
+C:/Users/admin/.platformio/packages/framework-espidf/components/log/include/esp_log.h:127:41: note: in expansion of macro 'ESP_LOG_LEVEL_LOCAL'
+  127 | #define ESP_LOGI(tag, format, ...) do { ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO, tag, format, ##__VA_ARGS__); } while(0)
+      |                                         ^~~~~~~~~~~~~~~~~~~
+main/wifi_manager.c:542:9: note: in expansion of macro 'ESP_LOGI'
+  542 |         ESP_LOGI(TAG, "WPA2 Handshake captured! BSSID=%s STA=%s", bssid_str,
+      |         ^~~~~~~~
+main/wifi_manager.c:542:67: note: each undeclared identifier is reported only once for each function it appears in
+  542 |         ESP_LOGI(TAG, "WPA2 Handshake captured! BSSID=%s STA=%s", bssid_str,
+      |                                                                   ^~~~~~~~~
+C:/Users/admin/.platformio/packages/framework-espidf/components/log/include/esp_log.h:220:167: note: in definition of macro 'ESP_LOG_LEVEL'
+  220 |         if (ESP_LOG_GET_LEVEL(configs)==ESP_LOG_ERROR)        { esp_log(ESP_LOG_CONFIG_INIT(ESP_LOG_ERROR),   tag, LOG_FORMAT(E, format), esp_log_timestamp(), tag, ##__VA_ARGS__); } \
+      |                                                                                                                                                                       ^~~~~~~~~~~
+C:/Users/admin/.platformio/packages/framework-espidf/components/log/include/esp_log.h:127:41: note: in expansion of macro 'ESP_LOG_LEVEL_LOCAL'
+  127 | #define ESP_LOGI(tag, format, ...) do { ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO, tag, format, ##__VA_ARGS__); } while(0)
+      |                                         ^~~~~~~~~~~~~~~~~~~
+main/wifi_manager.c:542:9: note: in expansion of macro 'ESP_LOGI'
+  542 |         ESP_LOGI(TAG, "WPA2 Handshake captured! BSSID=%s STA=%s", bssid_str,
+      |         ^~~~~~~~
+main/wifi_manager.c:543:18: error: 'sta_str' undeclared (first use in this function); did you mean 'strnstr'?
+  543 |                  sta_str);
+      |                  ^~~~~~~
+C:/Users/admin/.platformio/packages/framework-espidf/components/log/include/esp_log.h:220:167: note: in definition of macro 'ESP_LOG_LEVEL'
+  220 |         if (ESP_LOG_GET_LEVEL(configs)==ESP_LOG_ERROR)        { esp_log(ESP_LOG_CONFIG_INIT(ESP_LOG_ERROR),   tag, LOG_FORMAT(E, format), esp_log_timestamp(), tag, ##__VA_ARGS__); } \
+      |                                                                                                                                                                       ^~~~~~~~~~~
+C:/Users/admin/.platformio/packages/framework-espidf/components/log/include/esp_log.h:127:41: note: in expansion of macro 'ESP_LOG_LEVEL_LOCAL'
+  127 | #define ESP_LOGI(tag, format, ...) do { ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO, tag, format, ##__VA_ARGS__); } while(0)
+      |                                         ^~~~~~~~~~~~~~~~~~~
+main/wifi_manager.c:542:9: note: in expansion of macro 'ESP_LOGI'
+  542 |         ESP_LOGI(TAG, "WPA2 Handshake captured! BSSID=%s STA=%s", bssid_str,
+      |         ^~~~~~~~
+Compiling .pio\build\esp32s3-idf\bootloader_support\src\bootloader_mem.c.o
+Archiving .pio\build\esp32s3-idf\esp-idf\app_update\libapp_update.a
+Compiling .pio\build\esp32s3-idf\bootloader_support\src\bootloader_random.c.o
+*** [.pio\build\esp32s3-idf\main\wifi_manager.c.o] Error 1
+Indexing .pio\build\esp32s3-idf\esp-idf\app_update\libapp_update.a
+========================= [FAILED] Took 11.76 seconds =========================

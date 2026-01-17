@@ -1,0 +1,332 @@
+// PBKDF2-HMAC-SHA1 Compute Shader for WPA2 Key Derivation
+// Target: Adreno 750 (Qualcomm Snapdragon 8 Gen 3)
+// 
+// This shader implements the complete PBKDF2-HMAC-SHA1 algorithm
+// directly on the GPU for massive parallel password testing.
+//
+// Performance Target: 50,000+ H/s
+
+#version 450
+
+// Workgroup configuration optimized for Adreno architecture
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+// Input buffer: Packed password data
+// Format: [length:1][password:63] x N passwords (64 bytes each)
+layout(std430, binding = 0) readonly buffer PasswordBuffer {
+    uint passwords[];
+};
+
+// Input buffer: Salt (SSID) - shared across all invocations
+// Format: [length:4][salt:32]
+layout(std430, binding = 1) readonly buffer SaltBuffer {
+    uint saltLen;
+    uint salt[8]; // Max 32 bytes
+};
+
+// Output buffer: PMK results (32 bytes per password)
+layout(std430, binding = 2) writeonly buffer OutputBuffer {
+    uint pmks[];
+};
+
+// Push constants for runtime configuration
+layout(push_constant) uniform PushConstants {
+    uint passwordCount;
+    uint iterations; // 4096 for WPA2
+} params;
+
+// ============================================================================
+// SHA1 CONSTANTS
+// ============================================================================
+const uint SHA1_H0 = 0x67452301u;
+const uint SHA1_H1 = 0xEFCDAB89u;
+const uint SHA1_H2 = 0x98BADCFEu;
+const uint SHA1_H3 = 0x10325476u;
+const uint SHA1_H4 = 0xC3D2E1F0u;
+
+const uint SHA1_K0 = 0x5A827999u;
+const uint SHA1_K1 = 0x6ED9EBA1u;
+const uint SHA1_K2 = 0x8F1BBCDCu;
+const uint SHA1_K3 = 0xCA62C1D6u;
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// Left rotate
+uint rotl(uint x, uint n) {
+    return (x << n) | (x >> (32u - n));
+}
+
+// Big-endian byte access from uint array
+uint getByte(uint word, uint byteIndex) {
+    return (word >> (24u - byteIndex * 8u)) & 0xFFu;
+}
+
+// Pack 4 bytes into big-endian uint
+uint packBE(uint b0, uint b1, uint b2, uint b3) {
+    return (b0 << 24u) | (b1 << 16u) | (b2 << 8u) | b3;
+}
+
+// ============================================================================
+// SHA1 BLOCK TRANSFORM (64 bytes -> update state)
+// ============================================================================
+void sha1_transform(inout uint state[5], uint block[16]) {
+    uint w[80];
+    
+    // Load message schedule (first 16 words from block)
+    for (uint i = 0u; i < 16u; i++) {
+        w[i] = block[i];
+    }
+    
+    // Extend to 80 words
+    for (uint i = 16u; i < 80u; i++) {
+        w[i] = rotl(w[i-3u] ^ w[i-8u] ^ w[i-14u] ^ w[i-16u], 1u);
+    }
+    
+    uint a = state[0];
+    uint b = state[1];
+    uint c = state[2];
+    uint d = state[3];
+    uint e = state[4];
+    
+    // Main loop - manually unrolled for better GPU performance
+    uint f, k, temp;
+    
+    // Rounds 0-19
+    for (uint i = 0u; i < 20u; i++) {
+        f = (b & c) | ((~b) & d);
+        k = SHA1_K0;
+        temp = rotl(a, 5u) + f + e + k + w[i];
+        e = d; d = c; c = rotl(b, 30u); b = a; a = temp;
+    }
+    
+    // Rounds 20-39
+    for (uint i = 20u; i < 40u; i++) {
+        f = b ^ c ^ d;
+        k = SHA1_K1;
+        temp = rotl(a, 5u) + f + e + k + w[i];
+        e = d; d = c; c = rotl(b, 30u); b = a; a = temp;
+    }
+    
+    // Rounds 40-59
+    for (uint i = 40u; i < 60u; i++) {
+        f = (b & c) | (b & d) | (c & d);
+        k = SHA1_K2;
+        temp = rotl(a, 5u) + f + e + k + w[i];
+        e = d; d = c; c = rotl(b, 30u); b = a; a = temp;
+    }
+    
+    // Rounds 60-79
+    for (uint i = 60u; i < 80u; i++) {
+        f = b ^ c ^ d;
+        k = SHA1_K3;
+        temp = rotl(a, 5u) + f + e + k + w[i];
+        e = d; d = c; c = rotl(b, 30u); b = a; a = temp;
+    }
+    
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
+    state[4] += e;
+}
+
+// ============================================================================
+// SHA1 FULL HASH (arbitrary length -> 20 bytes)
+// ============================================================================
+void sha1(uint data[32], uint dataLen, out uint hash[5]) {
+    hash[0] = SHA1_H0;
+    hash[1] = SHA1_H1;
+    hash[2] = SHA1_H2;
+    hash[3] = SHA1_H3;
+    hash[4] = SHA1_H4;
+    
+    uint block[16];
+    uint blockIndex = 0u;
+    uint wordIndex = 0u;
+    
+    // Process complete 64-byte blocks
+    while (wordIndex + 16u <= (dataLen + 3u) / 4u) {
+        for (uint i = 0u; i < 16u; i++) {
+            block[i] = data[wordIndex + i];
+        }
+        sha1_transform(hash, block);
+        wordIndex += 16u;
+    }
+    
+    // Final block with padding
+    for (uint i = 0u; i < 16u; i++) {
+        block[i] = 0u;
+    }
+    
+    // Copy remaining data
+    uint remaining = dataLen - wordIndex * 4u;
+    for (uint i = 0u; i < (remaining + 3u) / 4u && wordIndex + i < 32u; i++) {
+        block[i] = data[wordIndex + i];
+    }
+    
+    // Add 0x80 padding byte
+    uint padBytePos = dataLen % 64u;
+    uint padWordPos = padBytePos / 4u;
+    uint padBitShift = (3u - (padBytePos % 4u)) * 8u;
+    block[padWordPos] |= (0x80u << padBitShift);
+    
+    // If not enough room for length, process this block and start new one
+    if (padBytePos >= 56u) {
+        sha1_transform(hash, block);
+        for (uint i = 0u; i < 16u; i++) {
+            block[i] = 0u;
+        }
+    }
+    
+    // Add length in bits (big endian, 64-bit)
+    uint bitLen = dataLen * 8u;
+    block[14] = 0u; // High 32 bits (assume < 512MB input)
+    block[15] = bitLen;
+    
+    sha1_transform(hash, block);
+}
+
+// ============================================================================
+// HMAC-SHA1
+// ============================================================================
+void hmac_sha1(uint key[16], uint keyLen, uint data[32], uint dataLen, out uint mac[5]) {
+    uint ipad[16];
+    uint opad[16];
+    
+    // XOR key with ipad (0x36) and opad (0x5C)
+    for (uint i = 0u; i < 16u; i++) {
+        uint k = (i < (keyLen + 3u) / 4u) ? key[i] : 0u;
+        ipad[i] = k ^ 0x36363636u;
+        opad[i] = k ^ 0x5C5C5C5Cu;
+    }
+    
+    // Inner hash: SHA1(ipad || data)
+    uint innerData[32];
+    for (uint i = 0u; i < 16u; i++) {
+        innerData[i] = ipad[i];
+    }
+    for (uint i = 0u; i < min(dataLen / 4u + 1u, 16u); i++) {
+        innerData[16u + i] = data[i];
+    }
+    
+    uint innerHash[5];
+    sha1(innerData, 64u + dataLen, innerHash);
+    
+    // Outer hash: SHA1(opad || innerHash)
+    uint outerData[32];
+    for (uint i = 0u; i < 16u; i++) {
+        outerData[i] = opad[i];
+    }
+    // Pack innerHash (5 uints = 20 bytes) into outerData
+    for (uint i = 0u; i < 5u; i++) {
+        outerData[16u + i] = innerHash[i];
+    }
+    
+    sha1(outerData, 64u + 20u, mac);
+}
+
+// ============================================================================
+// PBKDF2-HMAC-SHA1
+// ============================================================================
+void pbkdf2_sha1(uint password[16], uint passLen, 
+                  uint salt[8], uint saltLen,
+                  uint iterations, out uint pmk[8]) {
+    
+    // For WPA2, we need 32 bytes (2 blocks of PBKDF2)
+    for (uint blockNum = 1u; blockNum <= 2u; blockNum++) {
+        // U1 = HMAC(password, salt || INT(blockNum))
+        uint saltBlock[32];
+        for (uint i = 0u; i < 8u; i++) {
+            saltBlock[i] = salt[i];
+        }
+        // Append block number (big endian)
+        uint saltBlockLen = saltLen;
+        uint blockNumWord = blockNum;
+        // Insert at byte position saltLen
+        uint insertPos = saltLen / 4u;
+        uint insertShift = (3u - (saltLen % 4u)) * 8u;
+        if (saltLen % 4u == 0u) {
+            saltBlock[insertPos] = blockNumWord << 24u;
+        } else {
+            saltBlock[insertPos] |= (blockNumWord >> (32u - insertShift));
+            saltBlock[insertPos + 1u] = blockNumWord << insertShift;
+        }
+        saltBlockLen += 4u;
+        
+        uint U[5];
+        hmac_sha1(password, passLen, saltBlock, saltBlockLen, U);
+        
+        // T = U1
+        uint T[5];
+        for (uint i = 0u; i < 5u; i++) {
+            T[i] = U[i];
+        }
+        
+        // U2...Uc: T ^= HMAC(password, U_prev)
+        uint Uprev[32];
+        for (uint iter = 1u; iter < iterations; iter++) {
+            // Copy U to Uprev (as 20 bytes / 5 words)
+            for (uint i = 0u; i < 5u; i++) {
+                Uprev[i] = U[i];
+            }
+            
+            hmac_sha1(password, passLen, Uprev, 20u, U);
+            
+            // XOR into T
+            for (uint i = 0u; i < 5u; i++) {
+                T[i] ^= U[i];
+            }
+        }
+        
+        // Copy T to output (20 bytes, but we only need 16 per block)
+        uint offset = (blockNum - 1u) * 4u;
+        for (uint i = 0u; i < 4u; i++) {
+            pmk[offset + i] = T[i];
+        }
+    }
+}
+
+// ============================================================================
+// MAIN ENTRY POINT
+// ============================================================================
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    
+    if (idx >= params.passwordCount) {
+        return;
+    }
+    
+    // Load password from input buffer
+    // Format: 64 bytes per password slot [len:1][password:63]
+    uint passOffset = idx * 16u; // 16 uints = 64 bytes
+    uint passLen = passwords[passOffset] & 0xFFu;
+    
+    uint password[16];
+    for (uint i = 0u; i < 16u; i++) {
+        password[i] = passwords[passOffset + i];
+    }
+    // Shift to remove length byte (OR handle in packing)
+    // For simplicity, assume password starts at word 1
+    for (uint i = 0u; i < 15u; i++) {
+        password[i] = passwords[passOffset + 1u + i];
+    }
+    password[15] = 0u;
+    
+    // Load salt
+    uint saltData[8];
+    for (uint i = 0u; i < 8u; i++) {
+        saltData[i] = salt[i];
+    }
+    
+    // Derive PMK
+    uint pmk[8];
+    pbkdf2_sha1(password, passLen, saltData, saltLen, params.iterations, pmk);
+    
+    // Write output
+    uint outOffset = idx * 8u;
+    for (uint i = 0u; i < 8u; i++) {
+        pmks[outOffset + i] = pmk[i];
+    }
+}

@@ -23,6 +23,13 @@ import com.chimera.red.ui.theme.Dimens
 
 @Composable
 fun ControlScreen(usbManager: UsbSerialManager) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    fun sendCmd(cmd: String) {
+        usbManager.write(cmd)
+        android.widget.Toast.makeText(context, "Sent: $cmd", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -52,33 +59,33 @@ fun ControlScreen(usbManager: UsbSerialManager) {
             ControlButton(
                 modifier = Modifier.align(Alignment.TopCenter), 
                 icon = Icons.Default.ArrowUpward,
-                onClick = { usbManager.write("INPUT_UP") }
+                onClick = { sendCmd("INPUT_UP") }
             )
             
             // DOWN
             ControlButton(
                 modifier = Modifier.align(Alignment.BottomCenter), 
                 icon = Icons.Default.ArrowDownward,
-                onClick = { usbManager.write("INPUT_DOWN") }
+                onClick = { sendCmd("INPUT_DOWN") }
             )
             
             // LEFT
             ControlButton(
                 modifier = Modifier.align(Alignment.CenterStart), 
                 icon = Icons.Default.ArrowBack, // Pointing Left
-                onClick = { usbManager.write("INPUT_LEFT") } // Assuming Left exists or maps to Back? main.cpp had LEFT
+                onClick = { sendCmd("INPUT_LEFT") } // Assuming Left exists or maps to Back? main.cpp had LEFT
             )
             
             // RIGHT
             ControlButton(
                 modifier = Modifier.align(Alignment.CenterEnd), 
                 icon = Icons.Default.ArrowForward,
-                onClick = { usbManager.write("INPUT_RIGHT") }
+                onClick = { sendCmd("INPUT_RIGHT") }
             )
             
             // SELECT (Center)
             Button(
-                onClick = { usbManager.write("INPUT_SELECT") },
+                onClick = { sendCmd("INPUT_SELECT") },
                 modifier = Modifier.size(70.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(containerColor = RetroGreen),
@@ -96,7 +103,7 @@ fun ControlScreen(usbManager: UsbSerialManager) {
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             Button(
-                onClick = { usbManager.write("INPUT_BACK") },
+                onClick = { sendCmd("INPUT_BACK") },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.8f)),
                 modifier = Modifier.width(120.dp).height(50.dp)
             ) {
