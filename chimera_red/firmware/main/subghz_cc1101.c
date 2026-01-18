@@ -126,7 +126,8 @@ static uint8_t spi_read_status(uint8_t reg) {
 }
 
 static void spi_write_burst(uint8_t reg, const uint8_t *data, size_t len) {
-  if (len == 0 || len > 64) return;
+  if (len == 0 || len > 64)
+    return;
 
   uint8_t tx_buf[65];
   tx_buf[0] = reg | 0x40;
@@ -140,7 +141,8 @@ static void spi_write_burst(uint8_t reg, const uint8_t *data, size_t len) {
 }
 
 static void spi_read_burst(uint8_t reg, uint8_t *data, size_t len) {
-  if (len == 0 || len > 64) return;
+  if (len == 0 || len > 64)
+    return;
 
   uint8_t tx_buf[65] = {0};
   uint8_t rx_buf[65];
@@ -279,7 +281,8 @@ esp_err_t cc1101_set_frequency(float freq_mhz) {
   // Calculate frequency registers
   // F_carrier = (F_xosc / 2^16) * FREQ
   // F_xosc = 26 MHz
-  uint32_t freq = (uint32_t)(freq_mhz * (65536.0 * 1000000.0) / 26000000.0 + 0.5);
+  uint32_t freq =
+      (uint32_t)(freq_mhz * (65536.0 * 1000000.0) / 26000000.0 + 0.5);
 
   cc1101_idle();
 
@@ -399,8 +402,10 @@ static void record_task(void *arg) {
     if (avail > 0) {
       uint8_t tmp[32];
       size_t to_read = avail;
-      if (to_read > sizeof(tmp)) to_read = sizeof(tmp);
-      if (to_read > g_record_max_size - g_record_len) to_read = g_record_max_size - g_record_len;
+      if (to_read > sizeof(tmp))
+        to_read = sizeof(tmp);
+      if (to_read > g_record_max_size - g_record_len)
+        to_read = g_record_max_size - g_record_len;
       size_t read = cc1101_rx_read(tmp, to_read);
       memcpy(g_record_buffer + g_record_len, tmp, read);
       g_record_len += read;
@@ -431,7 +436,8 @@ esp_err_t cc1101_record_start(uint8_t *buffer, size_t max_size) {
 }
 
 size_t cc1101_record_stop(void) {
-  if (!g_recording) return 0;
+  if (!g_recording)
+    return 0;
 
   g_recording = false;
   vTaskDelay(pdMS_TO_TICKS(50)); // Allow task to flush remaining data
@@ -453,10 +459,58 @@ esp_err_t cc1101_replay(const uint8_t *data, size_t len) {
   while (offset < len) {
     size_t chunk = (len - offset > 60) ? 60 : (len - offset);
     esp_err_t ret = cc1101_tx(data + offset, chunk);
-    if (ret != ESP_OK) return ret;
+    if (ret != ESP_OK)
+      return ret;
     offset += chunk;
   }
 
   ESP_LOGI(TAG, "Replay complete");
+  return ESP_OK;
+}
+
+esp_err_t cc1101_replay_continuous(const uint8_t *data, size_t len) {
+  if (!g_detected || !data)
+    return ESP_ERR_INVALID_ARG;
+
+  ESP_LOGI(TAG, "Continuous replay %d bytes...", len);
+
+  cc1101_idle();
+  spi_strobe(CC1101_SFTX); // Flush TX FIFO
+
+  size_t bytes_sent = 0;
+  size_t fifo_size = 64;
+
+  // Pre-fill FIFO
+  size_t chunk = (len > fifo_size) ? fifo_size : len;
+  spi_write_burst(CC1101_TXFIFO, data, chunk);
+  bytes_sent += chunk;
+
+  // Start Transmission
+  spi_strobe(CC1101_STX);
+
+  // Feed FIFO while transmitting (streaming mode)
+  while (bytes_sent < len) {
+    uint8_t status = spi_read_status(CC1101_TXBYTES);
+    uint8_t bytes_in_fifo = status & 0x7F;
+
+    // Refill when < 30 bytes remaining in FIFO
+    if (bytes_in_fifo < 30) {
+      size_t space = fifo_size - bytes_in_fifo;
+      size_t remaining = len - bytes_sent;
+      size_t to_write = (remaining > space) ? space : remaining;
+
+      if (to_write > 0) {
+        spi_write_burst(CC1101_TXFIFO, data + bytes_sent, to_write);
+        bytes_sent += to_write;
+      }
+    }
+  }
+
+  // Wait for IDLE (Tx complete)
+  while ((spi_read_status(CC1101_MARCSTATE) & 0x1F) != 0x01) {
+    vTaskDelay(1);
+  }
+
+  ESP_LOGI(TAG, "Continuous replay complete");
   return ESP_OK;
 }

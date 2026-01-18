@@ -157,48 +157,75 @@ fun SubGhzScreen(usbManager: UsbSerialManager) {
             }
             
         } else if (selectedTab == 1) {
-            // == ATTACKS TAB ==
+            // == RECORDER TAB ==
             Column(Modifier.weight(1f).padding(Dimens.SpacingMd)) {
-                 Text("GATE OPENER BRUTE FORCE", fontWeight = FontWeight.Bold, color = RetroGreen)
+                 Text("SIGNAL RECORDER", fontWeight = FontWeight.Bold, color = RetroGreen)
                  Spacer(Modifier.height(8.dp))
-                 Text("Cycles common 12-bit fixed codes (CAME, Nice, PT2262). Warning: This may jam local frequencies.", 
+                 Text("Record and replay Sub-GHz signals from remotes, key fobs, and other RF devices.", 
                       style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                  
                  Spacer(Modifier.height(Dimens.SpacingXl))
                  
-                 var isBruting by remember { mutableStateOf(false) }
-                 
+                 // Recording Status Box
                  Box(Modifier.fillMaxWidth().height(100.dp).border(1.dp, RetroGreen), contentAlignment = Alignment.Center) {
-                     if (isBruting) {
+                     if (isRecording) {
                          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                             CircularProgressIndicator(color = RetroGreen)
+                             CircularProgressIndicator(color = Color.Red)
                              Spacer(Modifier.height(8.dp))
-                             Text("TRANSMITTING...", color = RetroGreen)
+                             Text("RECORDING...", color = Color.Red)
+                         }
+                     } else if (hasRecording) {
+                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                             Text("✓ SIGNAL CAPTURED", color = RetroGreen, fontWeight = FontWeight.Bold)
+                             Spacer(Modifier.height(4.dp))
+                             Text("Ready to replay", color = Color.Gray, fontSize = 12.sp)
                          }
                      } else {
-                         Text("READY", color = RetroGreen)
+                         Text("NO RECORDING", color = Color.Gray)
                      }
                  }
                  
                  Spacer(Modifier.height(Dimens.SpacingXl))
                  
-                 Button(
-                    onClick = {
-                        isBruting = !isBruting
-                        if (isBruting) {
-                            usbManager.write("SUBGHZ_BRUTE")
-                        } else {
-                             // Stop? Firmware doesn't explicitly support stop yet without serial check loop
-                             isBruting = false
-                             // We can try sending any char to break the serial loop if implemented
-                             usbManager.write("STOP") 
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isBruting) Color.Red else RetroGreen)
-                ) {
-                    Text(if (isBruting) "STOP ATTACK" else "START 12-BIT BRUTE FORCE", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                }
+                 // Record / Replay Buttons
+                 Row(
+                     modifier = Modifier.fillMaxWidth(),
+                     horizontalArrangement = Arrangement.spacedBy(Dimens.SpacingMd)
+                 ) {
+                     Button(
+                        onClick = {
+                            if (isRecording) {
+                                // Stop recording - firmware handles this internally
+                                isRecording = false
+                                hasRecording = true
+                            } else {
+                                usbManager.write("RX_RECORD")
+                                isRecording = true
+                                hasRecording = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(60.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isRecording) Color.Red else RetroGreen)
+                    ) {
+                        Text(if (isRecording) "STOP REC" else "RECORD", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            if (hasRecording) {
+                                usbManager.write("TX_REPLAY")
+                            }
+                        },
+                        enabled = hasRecording && !isRecording,
+                        modifier = Modifier.weight(1f).height(60.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (hasRecording) RetroGreen.copy(alpha = 0.8f) else Color.Gray,
+                            disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Text("REPLAY", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (hasRecording) Color.Black else Color.Gray)
+                    }
+                 }
             }
         }
     }

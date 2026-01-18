@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 static const char *TAG = "gui";
 
 // Menu items
@@ -144,7 +143,7 @@ esp_err_t gui_init(void) {
   }
 
   // Set rotation (landscape if desired)
-  display_set_rotation(0); // Portrait
+  display_set_rotation(3); // Landscape 90° right
 
   // Clear log
   memset(g_log, 0, sizeof(g_log));

@@ -3,7 +3,8 @@
  * @brief Serial Communication Implementation for Chimera Red
  *
  * Features:
- * - Conditional USB Serial JTAG support for ESP32-S3 (with UART fallback for other chips)
+ * - Conditional USB Serial JTAG support for ESP32-S3 (with UART fallback for
+ * other chips)
  * - Thread-safe TX operations with mutex to prevent interleaved output
  * - Graceful task shutdown with flag and wait loop
  * - Heap-allocated buffers for large messages to avoid stack overflows
@@ -17,7 +18,8 @@
  * - Atomic-like TX protection
  * - Pre-calculated buffer sizes for printf/JSON
  * - Full JSON escape including \b, \f, \uXXXX for non-printable
- * - Clean RX buffer handling with strdup for handler (prevents reentrancy issues)
+ * - Clean RX buffer handling with strdup for handler (prevents reentrancy
+ * issues)
  * - Added serial_is_initialized() implementation
  */
 #include "serial_comm.h"
@@ -84,7 +86,8 @@ static SemaphoreHandle_t g_tx_mutex = NULL;
 // ---------------- Internal helpers ----------------
 
 static inline int serial_read_byte(uint8_t *out_byte) {
-  if (!out_byte) return 0;
+  if (!out_byte)
+    return 0;
 
 #if SERIAL_USE_USB_JTAG
   return usb_serial_jtag_read_bytes(out_byte, 1, SERIAL_READ_TIMEOUT);
@@ -93,14 +96,18 @@ static inline int serial_read_byte(uint8_t *out_byte) {
 #endif
 }
 
-static inline void serial_write_bytes_internal(const uint8_t *data, size_t len) {
-  if (!data || len == 0) return;
+static inline void serial_write_bytes_internal(const uint8_t *data,
+                                               size_t len) {
+  if (!data || len == 0)
+    return;
 
 #if SERIAL_USE_USB_JTAG
   size_t written = 0;
   while (written < len) {
-    int ret = usb_serial_jtag_write_bytes(data + written, len - written, SERIAL_WRITE_TIMEOUT);
-    if (ret <= 0) break; // Timeout or error
+    int ret = usb_serial_jtag_write_bytes(data + written, len - written,
+                                          SERIAL_WRITE_TIMEOUT);
+    if (ret <= 0)
+      break; // Timeout or error
     written += (size_t)ret;
   }
 #else
@@ -109,7 +116,8 @@ static inline void serial_write_bytes_internal(const uint8_t *data, size_t len) 
 }
 
 static inline void serial_write_cstr_internal(const char *s) {
-  if (!s) return;
+  if (!s)
+    return;
   serial_write_bytes_internal((const uint8_t *)s, strlen(s));
 }
 
@@ -206,7 +214,8 @@ esp_err_t serial_init(void) {
     return ret;
   }
 
-  ret = uart_driver_install(UART_PORT, RX_BUF_SIZE * 2, RX_BUF_SIZE, 0, NULL, 0);
+  ret =
+      uart_driver_install(UART_PORT, RX_BUF_SIZE * 2, RX_BUF_SIZE, 0, NULL, 0);
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "UART driver install failed: %s", esp_err_to_name(ret));
     vSemaphoreDelete(g_tx_mutex);
@@ -219,8 +228,8 @@ esp_err_t serial_init(void) {
   g_initialized = true;
   g_rx_pos = 0;
 
-  BaseType_t task_ok = xTaskCreate(serial_rx_task, "serial_rx", RX_TASK_STACK, NULL,
-                                   RX_TASK_PRIO, &g_rx_task);
+  BaseType_t task_ok = xTaskCreate(serial_rx_task, "serial_rx", RX_TASK_STACK,
+                                   NULL, RX_TASK_PRIO, &g_rx_task);
   if (task_ok != pdPASS) {
     ESP_LOGE(TAG, "Failed to create RX task");
     g_initialized = false;
@@ -272,25 +281,27 @@ void serial_deinit(void) {
   ESP_LOGI(TAG, "Serial communication deinitialized");
 }
 
-bool serial_is_initialized(void) {
-  return g_initialized;
-}
+bool serial_is_initialized(void) { return g_initialized; }
 
 void serial_send_json(const char *type, const char *data) {
-  if (!g_initialized || !type) return;
+  if (!g_initialized || !type)
+    return;
   const char *payload = data ? data : "null";
 
   // Pre-calculate size
-  int needed = snprintf(NULL, 0, "{\"type\":\"%s\",\"data\":%s}\n", type, payload);
+  int needed =
+      snprintf(NULL, 0, "{\"type\":\"%s\",\"data\":%s}\n", type, payload);
   if (needed <= 0 || needed + 1 > SERIAL_MAX_DYNAMIC_ALLOC) {
     ESP_LOGW(TAG, "serial_send_json dropped (size: %d)", needed);
     return;
   }
 
   char *buf = malloc((size_t)needed + 1);
-  if (!buf) return;
+  if (!buf)
+    return;
 
-  snprintf(buf, (size_t)needed + 1, "{\"type\":\"%s\",\"data\":%s}\n", type, payload);
+  snprintf(buf, (size_t)needed + 1, "{\"type\":\"%s\",\"data\":%s}\n", type,
+           payload);
 
   if (xSemaphoreTake(g_tx_mutex, SERIAL_WRITE_TIMEOUT) == pdTRUE) {
     serial_write_bytes_internal((const uint8_t *)buf, (size_t)needed);
@@ -303,9 +314,11 @@ void serial_send_json(const char *type, const char *data) {
 }
 
 void serial_send_json_raw(const char *json_str) {
-  if (!g_initialized || !json_str) return;
+  if (!g_initialized || !json_str)
+    return;
   size_t len = strlen(json_str);
-  if (len == 0) return;
+  if (len == 0)
+    return;
 
   if (xSemaphoreTake(g_tx_mutex, SERIAL_WRITE_TIMEOUT) == pdTRUE) {
     serial_write_bytes_internal((const uint8_t *)json_str, len);
@@ -317,7 +330,8 @@ void serial_send_json_raw(const char *json_str) {
 }
 
 void serial_send_raw(const uint8_t *data, size_t len) {
-  if (!g_initialized || !data || len == 0) return;
+  if (!g_initialized || !data || len == 0)
+    return;
 
   if (xSemaphoreTake(g_tx_mutex, SERIAL_WRITE_TIMEOUT) == pdTRUE) {
     serial_write_bytes_internal(data, len);
@@ -328,7 +342,8 @@ void serial_send_raw(const uint8_t *data, size_t len) {
 }
 
 void serial_printf(const char *format, ...) {
-  if (!g_initialized || !format) return;
+  if (!g_initialized || !format)
+    return;
 
   va_list args;
   va_start(args, format);
@@ -369,7 +384,8 @@ void serial_set_cmd_handler(serial_cmd_handler_t handler) {
 }
 
 size_t serial_escape_json(const char *input, char *output, size_t max_len) {
-  if (!input || !output || max_len == 0) return 0;
+  if (!input || !output || max_len == 0)
+    return 0;
 
   size_t in_pos = 0;
   size_t out_pos = 0;
@@ -380,46 +396,53 @@ size_t serial_escape_json(const char *input, char *output, size_t max_len) {
     size_t remaining = max_len - 1 - out_pos;
 
     switch (c) {
-      case '"':
-      case '\\':
-        if (remaining < 2) goto done;
-        output[out_pos++] = '\\';
+    case '"':
+    case '\\':
+      if (remaining < 2)
+        goto done;
+      output[out_pos++] = '\\';
+      output[out_pos++] = (char)c;
+      break;
+    case '\b':
+      if (remaining < 2)
+        goto done;
+      output[out_pos++] = '\\';
+      output[out_pos++] = 'b';
+      break;
+    case '\f':
+      if (remaining < 2)
+        goto done;
+      output[out_pos++] = '\\';
+      output[out_pos++] = 'f';
+      break;
+    case '\n':
+      if (remaining < 2)
+        goto done;
+      output[out_pos++] = '\\';
+      output[out_pos++] = 'n';
+      break;
+    case '\r':
+      if (remaining < 2)
+        goto done;
+      output[out_pos++] = '\\';
+      output[out_pos++] = 'r';
+      break;
+    case '\t':
+      if (remaining < 2)
+        goto done;
+      output[out_pos++] = '\\';
+      output[out_pos++] = 't';
+      break;
+    default:
+      if (c < 0x20) {
+        if (remaining < 6)
+          goto done;
+        snprintf(output + out_pos, 7, "\\u%04x", c);
+        out_pos += 6;
+      } else {
         output[out_pos++] = (char)c;
-        break;
-      case '\b':
-        if (remaining < 2) goto done;
-        output[out_pos++] = '\\';
-        output[out_pos++] = 'b';
-        break;
-      case '\f':
-        if (remaining < 2) goto done;
-        output[out_pos++] = '\\';
-        output[out_pos++] = 'f';
-        break;
-      case '\n':
-        if (remaining < 2) goto done;
-        output[out_pos++] = '\\';
-        output[out_pos++] = 'n';
-        break;
-      case '\r':
-        if (remaining < 2) goto done;
-        output[out_pos++] = '\\';
-        output[out_pos++] = 'r';
-        break;
-      case '\t':
-        if (remaining < 2) goto done;
-        output[out_pos++] = '\\';
-        output[out_pos++] = 't';
-        break;
-      default:
-        if (c < 0x20) {
-          if (remaining < 6) goto done;
-          snprintf(output + out_pos, 7, "\\u%04x", c);
-          out_pos += 6;
-        } else {
-          output[out_pos++] = (char)c;
-        }
-        break;
+      }
+      break;
     }
   }
 
@@ -428,8 +451,85 @@ done:
   return out_pos;
 }
 
+// ---------------- COBS ----------------
+
+// Static scratch buffer for COBS encoding/decoding
+// Size covers max packet ~4KB + overhead
+static uint8_t s_cobs_scratch[4300];
+
+size_t cobs_encode(const uint8_t *input, size_t length, uint8_t *output) {
+  size_t read_index = 0;
+  size_t write_index = 1;
+  size_t code_index = 0;
+  uint8_t code = 1;
+
+  while (read_index < length) {
+    if (input[read_index] == 0) {
+      output[code_index] = code;
+      code = 1;
+      code_index = write_index++;
+      read_index++;
+    } else {
+      output[write_index++] = input[read_index++];
+      code++;
+      if (code == 0xFF) {
+        output[code_index] = code;
+        code = 1;
+        code_index = write_index++;
+      }
+    }
+  }
+  output[code_index] = code;
+  return write_index;
+}
+
+void serial_send_cobs(uint8_t type, const uint8_t *data, size_t len) {
+  if (!g_initialized || !data)
+    return;
+
+  // Overhead calculation: len + len/254 + 2 (type+delim)
+  size_t max_out = len + (len / 254) + 5;
+  if (max_out > sizeof(s_cobs_scratch)) {
+    ESP_LOGE(TAG, "Packet too large for COBS buffer (%d > %d)", max_out,
+             sizeof(s_cobs_scratch));
+    return;
+  }
+
+  if (xSemaphoreTake(g_tx_mutex, SERIAL_WRITE_TIMEOUT) == pdTRUE) {
+    // 1. Prepare temp buffer for [Type][Data]
+    // Reuse end of scratch buffer or use small stack buffer if small enough
+    // For safety, we'll alloc a temp buffer for the raw input concatenation
+    // or we can misuse the scratch buffer: [Encoding...][Raw...]
+    // Given the memory constraints, let's alloc a small header+payload buffer
+    // if it fits on stack, else heap. Or simply encode in parts?
+    // COBS requires full pass.
+
+    uint8_t *raw_buf = malloc(len + 1);
+    if (raw_buf) {
+      raw_buf[0] = type;
+      memcpy(raw_buf + 1, data, len);
+
+      size_t encoded_len = cobs_encode(raw_buf, len + 1, s_cobs_scratch);
+
+      serial_write_bytes_internal(s_cobs_scratch, encoded_len);
+
+      uint8_t delim = 0x00;
+      serial_write_bytes_internal(&delim, 1);
+
+      free(raw_buf);
+    } else {
+      ESP_LOGE(TAG, "COBS alloc failed");
+    }
+
+    xSemaphoreGive(g_tx_mutex);
+  } else {
+    ESP_LOGW(TAG, "TX mutex timeout in COBS");
+  }
+}
+
 void serial_flush(void) {
-  if (!g_initialized) return;
+  if (!g_initialized)
+    return;
 
 #if SERIAL_USE_USB_JTAG
   // No explicit flush; short delay to allow TX

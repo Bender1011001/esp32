@@ -126,6 +126,14 @@ size_t cc1101_record_stop(void);
  */
 esp_err_t cc1101_replay(const uint8_t *data, size_t len);
 
+/**
+ * @brief Replay with continuous FIFO streaming (no carrier gaps)
+ * @param data Signal data
+ * @param len Data length (can exceed FIFO size)
+ * @return ESP_OK on success
+ */
+esp_err_t cc1101_replay_continuous(const uint8_t *data, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -179,6 +179,9 @@ void display_fill(uint16_t color) {
   display_fill_rect(0, 0, g_width, g_height, color);
 }
 
+// Static DMA buffer to prevent heap fragmentation
+DMA_ATTR static uint8_t s_dma_buffer[4096 * 2];
+
 void display_fill_rect(int x, int y, int w, int h, uint16_t color) {
   if (x >= g_width || y >= g_height || w <= 0 || h <= 0)
     return;
@@ -196,32 +199,29 @@ void display_fill_rect(int x, int y, int w, int h, uint16_t color) {
   uint8_t lo = color & 0xFF;
 
   size_t pixels = w * h;
+  size_t max_buf_pixels = sizeof(s_dma_buffer) / 2;
 
-  // Use DMA buffer for large fills
-  size_t buf_pixels = (pixels > 4096) ? 4096 : pixels;
-  uint8_t *buf = heap_caps_malloc(buf_pixels * 2, MALLOC_CAP_DMA);
+  // Use static DMA buffer
+  size_t buf_pixels = (pixels > max_buf_pixels) ? max_buf_pixels : pixels;
+  uint8_t *buf = s_dma_buffer;
 
-  if (buf) {
-    // Fill buffer with color
-    for (size_t i = 0; i < buf_pixels; i++) {
-      buf[i * 2] = hi;
-      buf[i * 2 + 1] = lo;
-    }
+  // Fill buffer with color
+  for (size_t i = 0; i < buf_pixels; i++) {
+    buf[i * 2] = hi;
+    buf[i * 2 + 1] = lo;
+  }
 
-    // Send in chunks
-    gpio_set_level(TFT_DC, 1);
-    size_t remaining = pixels;
-    while (remaining > 0) {
-      size_t chunk = (remaining > buf_pixels) ? buf_pixels : remaining;
-      spi_transaction_t t = {
-          .length = chunk * 16,
-          .tx_buffer = buf,
-      };
-      spi_device_polling_transmit(g_spi, &t);
-      remaining -= chunk;
-    }
-
-    heap_caps_free(buf);
+  // Send in chunks
+  gpio_set_level(TFT_DC, 1);
+  size_t remaining = pixels;
+  while (remaining > 0) {
+    size_t chunk = (remaining > buf_pixels) ? buf_pixels : remaining;
+    spi_transaction_t t = {
+        .length = chunk * 16,
+        .tx_buffer = buf,
+    };
+    spi_device_polling_transmit(g_spi, &t);
+    remaining -= chunk;
   }
 }
 

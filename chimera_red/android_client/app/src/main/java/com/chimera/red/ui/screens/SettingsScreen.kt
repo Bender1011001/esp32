@@ -106,5 +106,59 @@ fun SettingsScreen(usbManager: UsbSerialManager) {
                  Text("Build: Debug / S24 Ultra Optimized", color = RetroGreen.copy(alpha=0.5f))
              }
         }
+        
+        Spacer(modifier = Modifier.height(Dimens.SpacingMd))
+
+        // Device Controls
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(Dimens.SpacingMd)
+            ) {
+                Text(
+                    text = "DEVICE CONTROLS",
+                    fontWeight = FontWeight.Bold,
+                    color = RetroGreen
+                )
+                Spacer(modifier = Modifier.height(Dimens.SpacingMd))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.SpacingMd)
+                ) {
+                    // Stop All Operations
+                    Button(
+                        onClick = { usbManager.write("STOP") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.7f))
+                    ) {
+                        Text("STOP ALL", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                    
+                    // Reboot Device
+                    Button(
+                        onClick = { usbManager.write("SYS_RESET") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = RetroGreen.copy(alpha = 0.5f))
+                    ) {
+                        Text("REBOOT", color = Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(Dimens.SpacingSm))
+                Text(
+                    "STOP ALL: Halts all active scans and attacks",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = RetroGreen.copy(alpha = 0.5f)
+                )
+                Text(
+                    "REBOOT: Restarts the ESP32 device",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = RetroGreen.copy(alpha = 0.5f)
+                )
+            }
+        }
     }
 }

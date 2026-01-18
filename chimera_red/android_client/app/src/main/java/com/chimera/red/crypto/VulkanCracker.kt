@@ -314,8 +314,23 @@ class VulkanCracker private constructor() {
             
             try {
                 if (nativeLibraryLoaded.get() && gpuAvailable) {
-                    // GPU path
-                    val result = nativeBatchDerivePMK(passwords.toTypedArray(), ssid)
+                    // GPU path - Chunked processing to prevent TDR/OOM
+                    // 5000 passwords * 4096 iters ~ safe for most mobile GPUs
+                    val BATCH_SIZE = 5000 
+                    val results = ArrayList<ByteArray>(passwords.size)
+                    
+                    for (chunk in passwords.chunked(BATCH_SIZE)) {
+                         val chunkResult = nativeBatchDerivePMK(chunk.toTypedArray(), ssid)
+                         results.addAll(chunkResult)
+                         
+                         // Small yield to keep UI responsive and prevent thermal throttling
+                         // if processing huge lists
+                         if (passwords.size > BATCH_SIZE * 2) {
+                             kotlinx.coroutines.yield()
+                         }
+                    }
+                    
+                    val result = results.toTypedArray()
                     
                     // Validate output
                     if (result.size != passwords.size) {

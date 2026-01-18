@@ -189,6 +189,20 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                         }
                     }
                     
+                    // Stop sniffing button
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = { 
+                                usbManager.write("SNIFF_STOP")
+                                lastAction = "SNIFFING STOPPED"
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("STOP SNIFF", color = Color.Red, fontSize = 10.sp)
+                        }
+                    }
+                    
                     // Live Signal Feedback (if sniffing active)
                     val signal = ChimeraRepository.visualizerPulse
                     if (signal > 0 || lastAction.contains("MONITORING")) {

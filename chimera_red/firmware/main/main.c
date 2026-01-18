@@ -70,7 +70,8 @@ static void cmd_scan_wifi(void) {
 static void cmd_scan_ble(void) {
   gui_log("Scanning BLE...");
   g_ble_device_count = 0;
-  ble_scan_start(ble_scan_callback, ble_scan_complete_callback, 5000); // 5 second scan
+  ble_scan_start(ble_scan_callback, ble_scan_complete_callback,
+                 5000); // 5 second scan
 }
 
 static void cmd_sniff_start(const char *payload) {
@@ -101,9 +102,10 @@ static void cmd_deauth(const char *payload) {
   uint8_t mac[6];
   uint8_t channel = 0;
 
-  // Parse MAC (required) and optional channel at the end (AA:BB:CC:DD:EE:FF or AA:BB:CC:DD:EE:FF:CH)
-  int fields = sscanf(payload, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhu",
-                      &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5], &channel);
+  // Parse MAC (required) and optional channel at the end (AA:BB:CC:DD:EE:FF or
+  // AA:BB:CC:DD:EE:FF:CH)
+  int fields = sscanf(payload, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhu", &mac[0],
+                      &mac[1], &mac[2], &mac[3], &mac[4], &mac[5], &channel);
 
   if (fields < 6) {
     serial_send_json("error", "\"Invalid MAC format\"");
@@ -113,7 +115,8 @@ static void cmd_deauth(const char *payload) {
   // If only 6 fields were parsed, channel remains 0 (hopping)
 
   char msg[64];
-  snprintf(msg, sizeof(msg), "DEAUTH %02X:..:%02X ch%d", mac[0], mac[5], channel);
+  snprintf(msg, sizeof(msg), "DEAUTH %02X:..:%02X ch%d", mac[0], mac[5],
+           channel);
   gui_log_color(msg, COLOR_RED);
 
   ESP_LOGI(TAG, "Starting deauth burst: %02X:%02X:%02X:%02X:%02X:%02X ch=%d",
@@ -201,7 +204,8 @@ static void cmd_nfc_scan(void) {
       strncat(uid_str, byte_str, sizeof(uid_str) - strlen(uid_str) - 1);
     }
 
-    snprintf(json, sizeof(json), "{\"uid\":\"%s\",\"type\":\"nfc_found\"}", uid_str);
+    snprintf(json, sizeof(json), "{\"uid\":\"%s\",\"type\":\"nfc_found\"}",
+             uid_str);
     serial_send_json_raw(json);
 
     char msg[32];
@@ -242,6 +246,191 @@ static void cmd_recon_stop(void) {
   gui_log("Recon stopped");
 }
 
+// --- CSI (Channel State Information) Commands ---
+static bool g_csi_active = false;
+
+static void cmd_csi_start(void) {
+  if (g_csi_active) {
+    serial_send_json("status", "\"CSI already active\"");
+    return;
+  }
+
+  // CSI requires promiscuous mode with specific filter
+  wifi_sniffer_start(0); // Start on current channel
+  g_csi_active = true;
+  gui_log_color("CSI Radar Active", COLOR_CYAN);
+  serial_send_json("status", "\"CSI started\"");
+}
+
+static void cmd_csi_stop(void) {
+  if (g_csi_active) {
+    wifi_sniffer_stop();
+    g_csi_active = false;
+    gui_log("CSI stopped");
+    serial_send_json("status", "\"CSI stopped\"");
+  }
+}
+
+// --- NFC Emulation ---
+static void cmd_nfc_emulate(void) {
+  // Check if we have a UID to emulate
+  gui_log("NFC Emulate...");
+
+  // PN532 doesn't support host card emulation easily - requires special
+  // firmware For now, report that we're emulating the last read tag
+  serial_send_json("status",
+                   "\"Emulating last read UID (passive mode not supported)\"");
+
+  // Note: Full HCE would require PN532 firmware modification
+  // This is a placeholder for future NFC-DEP P2P mode
+  gui_log_color("Emulate: Limited", COLOR_ORANGE);
+}
+
+// --- Sub-GHz Analyzer (RSSI sweep) ---
+static bool g_analyzer_active = false;
+static TaskHandle_t g_analyzer_task = NULL;
+
+static void analyzer_task(void *arg) {
+  (void)arg;
+
+  while (g_analyzer_active) {
+    int rssi = cc1101_get_rssi();
+
+    // Send RSSI as analyzer data (single value for now)
+    char json[64];
+    snprintf(json, sizeof(json), "{\"type\":\"analyzer_data\",\"rssi\":%d}",
+             rssi);
+    serial_send_json_raw(json);
+
+    vTaskDelay(pdMS_TO_TICKS(50)); // 20 Hz update rate
+  }
+
+  g_analyzer_task = NULL;
+  vTaskDelete(NULL);
+}
+
+static void cmd_analyzer_start(void) {
+  if (g_analyzer_active) {
+    serial_send_json("status", "\"Analyzer already running\"");
+    return;
+  }
+
+  if (!cc1101_is_present()) {
+    serial_send_json("error", "\"CC1101 not detected\"");
+    return;
+  }
+
+  g_analyzer_active = true;
+  cc1101_rx_start();
+
+  xTaskCreate(analyzer_task, "analyzer", 2048, NULL, 3, &g_analyzer_task);
+  gui_log_color("Analyzer Running", COLOR_CYAN);
+  serial_send_json("status", "\"Analyzer started\"");
+}
+
+static void cmd_analyzer_stop(void) {
+  if (g_analyzer_active) {
+    g_analyzer_active = false;
+    cc1101_idle();
+    gui_log("Analyzer stopped");
+    serial_send_json("status", "\"Analyzer stopped\"");
+  }
+}
+
+// --- Sub-GHz Brute Force (12-bit fixed codes) ---
+static bool g_brute_active = false;
+static TaskHandle_t g_brute_task = NULL;
+
+static void brute_force_task(void *arg) {
+  (void)arg;
+
+  gui_log_color("Brute: Starting", COLOR_RED);
+
+  // Common 12-bit fixed code format for garage doors
+  // PT2262 encoding: each bit is represented by pulse patterns
+  // We'll cycle through all 4096 combinations (2^12)
+
+  uint8_t tx_buffer[16];
+  int codes_sent = 0;
+
+  for (uint16_t code = 0; code < 4096 && g_brute_active; code++) {
+    // Encode 12-bit code into pulse data
+    // Simple OOK encoding: short pulse = 0, long pulse = 1
+    for (int bit = 0; bit < 12; bit++) {
+      if (code & (1 << (11 - bit))) {
+        tx_buffer[bit] = 0xE0; // Long pulse pattern
+      } else {
+        tx_buffer[bit] = 0x80; // Short pulse pattern
+      }
+    }
+    // Add sync pulse
+    tx_buffer[12] = 0x00;
+    tx_buffer[13] = 0x00;
+
+    // Transmit
+    cc1101_tx(tx_buffer, 14);
+
+    codes_sent++;
+
+    // Progress update every 256 codes
+    if ((code & 0xFF) == 0) {
+      char msg[48];
+      snprintf(msg, sizeof(msg), "Brute: %d/4096", code);
+      gui_log(msg);
+
+      char json[64];
+      snprintf(json, sizeof(json),
+               "{\"type\":\"brute_progress\",\"current\":%d,\"total\":4096}",
+               code);
+      serial_send_json_raw(json);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(20)); // ~50 codes/sec
+  }
+
+  g_brute_active = false;
+  g_brute_task = NULL;
+
+  char result[64];
+  snprintf(result, sizeof(result), "Brute complete: %d codes", codes_sent);
+  gui_log_color(result, COLOR_GREEN);
+  serial_send_json("status", "\"Brute force complete\"");
+
+  vTaskDelete(NULL);
+}
+
+static void cmd_subghz_brute(void) {
+  if (g_brute_active) {
+    serial_send_json("status", "\"Brute force already running\"");
+    return;
+  }
+
+  if (!cc1101_is_present()) {
+    serial_send_json("error", "\"CC1101 not detected\"");
+    return;
+  }
+
+  g_brute_active = true;
+  xTaskCreate(brute_force_task, "brute", 4096, NULL, 3, &g_brute_task);
+}
+
+// --- Generic STOP command ---
+static void cmd_stop_all(void) {
+  // Stop all active operations
+  if (g_csi_active)
+    cmd_csi_stop();
+  if (g_analyzer_active)
+    cmd_analyzer_stop();
+  if (g_brute_active) {
+    g_brute_active = false;
+    gui_log("Brute force aborted");
+  }
+  wifi_sniffer_stop();
+
+  gui_log("All operations stopped");
+  serial_send_json("status", "\"All stopped\"");
+}
+
 // --- Status / Heartbeat Task ---
 static void status_task(void *arg) {
   (void)arg;
@@ -259,9 +448,10 @@ static void status_task(void *arg) {
     }
 
     char json[128];
-    snprintf(json, sizeof(json),
-             "{\"type\":\"sys_status\",\"heap\":%lu,\"min_heap\":%lu,\"rssi\":%d}",
-             (unsigned long)free_heap, (unsigned long)min_heap, rssi);
+    snprintf(
+        json, sizeof(json),
+        "{\"type\":\"sys_status\",\"heap\":%lu,\"min_heap\":%lu,\"rssi\":%d}",
+        (unsigned long)free_heap, (unsigned long)min_heap, rssi);
     serial_send_json_raw(json);
   }
 }
@@ -312,6 +502,20 @@ static void handle_command(const char *cmd) {
     cmd_recon_start();
   } else if (strcmp(command, "RECON_STOP") == 0) {
     cmd_recon_stop();
+  } else if (strcmp(command, "CSI_START") == 0) {
+    cmd_csi_start();
+  } else if (strcmp(command, "CSI_STOP") == 0) {
+    cmd_csi_stop();
+  } else if (strcmp(command, "NFC_EMULATE") == 0) {
+    cmd_nfc_emulate();
+  } else if (strcmp(command, "ANALYZER_START") == 0) {
+    cmd_analyzer_start();
+  } else if (strcmp(command, "ANALYZER_STOP") == 0) {
+    cmd_analyzer_stop();
+  } else if (strcmp(command, "SUBGHZ_BRUTE") == 0) {
+    cmd_subghz_brute();
+  } else if (strcmp(command, "STOP") == 0) {
+    cmd_stop_all();
   } else if (strcmp(command, "SYS_RESET") == 0) {
     gui_log("Rebooting...");
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -391,13 +595,14 @@ static void ble_scan_complete_callback(void) {
              g_ble_devices[i].addr[4], g_ble_devices[i].addr[5]);
 
     char escaped_name[65];
-    serial_escape_json(g_ble_devices[i].has_name ? g_ble_devices[i].name : "Unknown",
+    serial_escape_json(g_ble_devices[i].has_name ? g_ble_devices[i].name
+                                                 : "Unknown",
                        escaped_name, sizeof(escaped_name));
 
     int written = snprintf(json + pos, BLE_JSON_BUFFER_SIZE - pos,
                            "%s{\"name\":\"%s\",\"address\":\"%s\",\"rssi\":%d}",
-                           (i > 0) ? "," : "",
-                           escaped_name, addr_str, g_ble_devices[i].rssi);
+                           (i > 0) ? "," : "", escaped_name, addr_str,
+                           g_ble_devices[i].rssi);
 
     if (written > 0 && pos + written < BLE_JSON_BUFFER_SIZE) {
       pos += written;
@@ -442,7 +647,8 @@ void app_main(void) {
     ESP_LOGE(TAG, "Shared SPI bus init failed: %s", esp_err_to_name(ret));
   }
 
-  ESP_LOGI(TAG, "Free heap: %lu bytes", (unsigned long)esp_get_free_heap_size());
+  ESP_LOGI(TAG, "Free heap: %lu bytes",
+           (unsigned long)esp_get_free_heap_size());
   ESP_LOGI(TAG, "PSRAM: %lu bytes",
            (unsigned long)heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
 
@@ -501,7 +707,8 @@ void app_main(void) {
 
   serial_send_json("status", "\"CHIMERA_READY\"");
 
-  BaseType_t task_ret = xTaskCreate(status_task, "status_task", 2048, NULL, 5, NULL);
+  BaseType_t task_ret =
+      xTaskCreate(status_task, "status_task", 2048, NULL, 5, NULL);
   if (task_ret != pdPASS) {
     ESP_LOGE(TAG, "Failed to create status task");
   }

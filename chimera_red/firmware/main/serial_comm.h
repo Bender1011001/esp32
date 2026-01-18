@@ -2,8 +2,9 @@
  * @file serial_comm.h
  * @brief Serial Communication for Chimera Red
  *
- * Handles serial communication (USB CDC or UART) with the client app and command parsing.
- * Designed to be thread-safe for FreeRTOS multi-task environments.
+ * Handles serial communication (USB CDC or UART) with the client app and
+ * command parsing. Designed to be thread-safe for FreeRTOS multi-task
+ * environments.
  */
 #pragma once
 
@@ -45,14 +46,33 @@ void serial_send_json(const char *type, const char *data);
 
 /**
  * @brief Send pre-formatted JSON string directly
- * @param json_str Full JSON message including braces (no trailing newline needed)
+ * @param json_str Full JSON message including braces (no trailing newline
+ * needed)
  */
 void serial_send_json_raw(const char *json_str);
+
+/**
+ * @brief Encode data using COBS
+ * @param input Input buffer
+ * @param length Input length
+ * @param output Output buffer (must be large enough: len + len/254 + 1)
+ * @return Encoded length
+ */
+size_t cobs_encode(const uint8_t *input, size_t length, uint8_t *output);
+
+/**
+ * @brief Send binary data wrapped in COBS
+ * @param type Message type (1 byte)
+ * @param data Payload data
+ * @param len Payload length
+ */
+void serial_send_cobs(uint8_t type, const uint8_t *data, size_t len);
 
 /**
  * @brief Send raw bytes
  * @param data Byte array
  * @param len Length of data
+ * @return void (thread-safe)
  */
 void serial_send_raw(const uint8_t *data, size_t len);
 

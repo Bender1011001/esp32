@@ -1,8 +1,15 @@
 package com.chimera.red
 
-import androidx.compose.ui.graphics.Color
+import com.chimera.red.ui.theme.ChimeraColors
 
-val RetroGreen = Color(0xFF00FF00) // Classic Terminal Green
-val DarkGreen = Color(0xFF003300)
-val PipelineBlack = Color(0xFF000000)
-val AlertRed = Color(0xFFFF0000)
+/**
+ * Legacy color exports for backward compatibility.
+ * 
+ * New code should use ChimeraColors directly from ui.theme.Color
+ */
+
+// Legacy aliases - these keep old imports working
+val RetroGreen = ChimeraColors.Primary
+val DarkGreen = ChimeraColors.Surface1
+val PipelineBlack = ChimeraColors.Background
+val AlertRed = ChimeraColors.Error
