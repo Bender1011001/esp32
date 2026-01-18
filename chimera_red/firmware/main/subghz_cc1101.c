@@ -78,6 +78,7 @@ static uint8_t *g_record_buffer = NULL;
 static size_t g_record_max_size = 0;
 static size_t g_record_len = 0;
 static bool g_recording = false;
+static TaskHandle_t g_record_task = NULL;
 
 // SPI helpers
 static uint8_t spi_strobe(uint8_t cmd) {
@@ -125,43 +126,33 @@ static uint8_t spi_read_status(uint8_t reg) {
 }
 
 static void spi_write_burst(uint8_t reg, const uint8_t *data, size_t len) {
-  uint8_t *tx = malloc(len + 1);
-  if (!tx)
-    return;
+  if (len == 0 || len > 64) return;
 
-  tx[0] = reg | 0x40; // Burst write
-  memcpy(tx + 1, data, len);
+  uint8_t tx_buf[65];
+  tx_buf[0] = reg | 0x40;
+  memcpy(tx_buf + 1, data, len);
 
   spi_transaction_t t = {
       .length = (len + 1) * 8,
-      .tx_buffer = tx,
+      .tx_buffer = tx_buf,
   };
   spi_device_polling_transmit(g_spi, &t);
-  free(tx);
 }
 
 static void spi_read_burst(uint8_t reg, uint8_t *data, size_t len) {
-  uint8_t *tx = malloc(len + 1);
-  uint8_t *rx = malloc(len + 1);
-  if (!tx || !rx) {
-    free(tx);
-    free(rx);
-    return;
-  }
+  if (len == 0 || len > 64) return;
 
-  memset(tx, 0, len + 1);
-  tx[0] = reg | 0xC0; // Burst read
+  uint8_t tx_buf[65] = {0};
+  uint8_t rx_buf[65];
+  tx_buf[0] = reg | 0xC0;
 
   spi_transaction_t t = {
       .length = (len + 1) * 8,
-      .tx_buffer = tx,
-      .rx_buffer = rx,
+      .tx_buffer = tx_buf,
+      .rx_buffer = rx_buf,
   };
   spi_device_polling_transmit(g_spi, &t);
-  memcpy(data, rx + 1, len);
-
-  free(tx);
-  free(rx);
+  memcpy(data, rx_buf + 1, len);
 }
 
 esp_err_t cc1101_init(void) {
@@ -210,7 +201,9 @@ esp_err_t cc1101_init(void) {
   // These are standard settings for garage door/keyfob signals
   spi_write_reg(CC1101_IOCFG0, 0x06);   // GDO0 asserts on sync word
   spi_write_reg(CC1101_FIFOTHR, 0x47);  // FIFO threshold
+  spi_write_reg(CC1101_PKTCTRL1, 0x00); // No addr check
   spi_write_reg(CC1101_PKTCTRL0, 0x00); // Fixed length, no CRC
+  spi_write_reg(CC1101_PKTLEN, 0xFF);   // Max packet length
   spi_write_reg(CC1101_FSCTRL1, 0x06);  // IF frequency
 
   // Set default frequency
@@ -248,7 +241,7 @@ esp_err_t cc1101_init(void) {
   g_initialized = true;
 
   ESP_LOGI(TAG, "CC1101 initialized at %.2f MHz", g_frequency);
-  serial_send_json("status", "\"Sub-GHz Ready\"");
+  serial_send_json("status", "Sub-GHz Ready");
 
   return ESP_OK;
 }
@@ -265,6 +258,7 @@ void cc1101_deinit(void) {
   }
 
   g_initialized = false;
+  g_detected = false;
 }
 
 void cc1101_reset(void) {
@@ -285,7 +279,7 @@ esp_err_t cc1101_set_frequency(float freq_mhz) {
   // Calculate frequency registers
   // F_carrier = (F_xosc / 2^16) * FREQ
   // F_xosc = 26 MHz
-  uint32_t freq = (uint32_t)(freq_mhz * 1000000.0 / 26000000.0 * 65536.0);
+  uint32_t freq = (uint32_t)(freq_mhz * (65536.0 * 1000000.0) / 26000000.0 + 0.5);
 
   cc1101_idle();
 
@@ -323,7 +317,17 @@ esp_err_t cc1101_tx(const uint8_t *data, size_t len) {
   spi_strobe(CC1101_STX);
 
   // Wait for TX to complete
-  vTaskDelay(pdMS_TO_TICKS(len * 5)); // Rough estimate
+  TickType_t start = xTaskGetTickCount();
+  uint8_t state;
+  do {
+    state = spi_read_status(CC1101_MARCSTATE);
+    if (xTaskGetTickCount() - start > pdMS_TO_TICKS(500)) {
+      ESP_LOGE(TAG, "TX timeout");
+      cc1101_idle();
+      return ESP_ERR_TIMEOUT;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));
+  } while (state != 0x01); // IDLE
 
   cc1101_idle();
 
@@ -389,9 +393,29 @@ void cc1101_idle(void) {
 
 bool cc1101_is_present(void) { return g_detected; }
 
+static void record_task(void *arg) {
+  while (g_recording && g_record_len < g_record_max_size) {
+    int avail = cc1101_rx_available();
+    if (avail > 0) {
+      uint8_t tmp[32];
+      size_t to_read = avail;
+      if (to_read > sizeof(tmp)) to_read = sizeof(tmp);
+      if (to_read > g_record_max_size - g_record_len) to_read = g_record_max_size - g_record_len;
+      size_t read = cc1101_rx_read(tmp, to_read);
+      memcpy(g_record_buffer + g_record_len, tmp, read);
+      g_record_len += read;
+    }
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+  cc1101_rx_stop();
+  vTaskDelete(NULL);
+}
+
 esp_err_t cc1101_record_start(uint8_t *buffer, size_t max_size) {
-  if (!g_detected || !buffer)
+  if (!g_detected || !buffer || max_size == 0)
     return ESP_ERR_INVALID_ARG;
+  if (g_recording)
+    return ESP_ERR_INVALID_STATE;
 
   g_record_buffer = buffer;
   g_record_max_size = max_size;
@@ -399,12 +423,19 @@ esp_err_t cc1101_record_start(uint8_t *buffer, size_t max_size) {
   g_recording = true;
 
   cc1101_rx_start();
+
+  xTaskCreate(record_task, "cc1101_rec", 2048, NULL, 5, &g_record_task);
+
   ESP_LOGI(TAG, "Recording started");
   return ESP_OK;
 }
 
 size_t cc1101_record_stop(void) {
+  if (!g_recording) return 0;
+
   g_recording = false;
+  vTaskDelay(pdMS_TO_TICKS(50)); // Allow task to flush remaining data
+
   cc1101_idle();
 
   ESP_LOGI(TAG, "Recording stopped, %d bytes captured", g_record_len);
@@ -421,7 +452,8 @@ esp_err_t cc1101_replay(const uint8_t *data, size_t len) {
   size_t offset = 0;
   while (offset < len) {
     size_t chunk = (len - offset > 60) ? 60 : (len - offset);
-    cc1101_tx(data + offset, chunk);
+    esp_err_t ret = cc1101_tx(data + offset, chunk);
+    if (ret != ESP_OK) return ret;
     offset += chunk;
   }
 

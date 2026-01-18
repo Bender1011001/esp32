@@ -46,6 +46,7 @@
 | Deauth TX Failed: 258 | ESP-IDF blob blocks management frames via `ieee80211_raw_frame_sanity_check` | Override function with stub returning 0 + linker flag `-Wl,-zmuldefs` |
 | "unsupport frame type: 0c0" | Same as above - driver validation | Same fix |
 | MAC Spoof Failed: 12293 | Set MAC while WiFi running | Stop WiFi, set MAC, restart |
+| Compile Error: 'esp_err.h' not found | Missing component limits in CMakeLists.txt | Added `esp_common`, `esp_netif`, `freertos`, `log` to `REQUIRES` |
 
 ## Build / Verify
 ```bash

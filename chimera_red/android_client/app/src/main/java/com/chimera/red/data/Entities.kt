@@ -43,6 +43,36 @@ data class CaptureEntity(
     val ssid: String?,
     val bssid: String?,
     val channel: Int?,
-    val data: String, // Hex or Base64 payload
+    val data: String,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+// Extension functions to map Entities to Domain Models
+fun NetworkEntity.toDomain(): com.chimera.red.models.WifiNetwork {
+    return com.chimera.red.models.WifiNetwork(
+        ssid = this.ssid,
+        bssid = this.bssid,
+        rssi = this.rssi,
+        channel = this.channel,
+        encryption = this.encryption,
+        lat = this.lat,
+        lon = this.lon
+    )
+}
+
+fun BleDeviceEntity.toDomain(): com.chimera.red.models.BleDevice {
+    return com.chimera.red.models.BleDevice(
+        name = this.name,
+        address = this.address,
+        rssi = this.rssi,
+        lat = this.lat,
+        lon = this.lon
+    )
+}
+
+fun LogEntity.toDomain(): com.chimera.red.models.LogEntry {
+    return com.chimera.red.models.LogEntry(
+        message = this.message,
+        timestamp = this.timestamp
+    )
+}

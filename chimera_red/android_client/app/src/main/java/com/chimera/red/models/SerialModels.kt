@@ -38,8 +38,17 @@ data class SerialMessage(
     @SerializedName("pulses") val pulses: List<Int>? = null,
     
     // CSI Data
-    @SerializedName("csi_data") val csiData: List<Int>? = null
+    @SerializedName("csi_data") val csiData: List<Int>? = null,
+    
+    // Client Discovery
+    @SerializedName("sta") val sta: String? = null,  // Client MAC for client discovery
+
+    // Visualizer / System Status
+    @SerializedName("val") val value: Int? = null,   // Map "val" from JSON to "value"
+    @SerializedName("heap") val heap: Long? = null,
+    @SerializedName("min_heap") val minHeap: Long? = null
 )
+
 
 data class WifiNetwork(
     @SerializedName("ssid") val ssid: String? = null,
@@ -57,6 +66,14 @@ data class BleDevice(
     @SerializedName("rssi") val rssi: Int? = null,
     var lat: Double? = null,
     var lon: Double? = null
+)
+
+// WiFi Client (Station) discovered via sniffing
+data class WifiClient(
+    @SerializedName("bssid") val bssid: String? = null,  // AP MAC
+    @SerializedName("sta") val sta: String? = null,       // Client MAC
+    @SerializedName("rssi") val rssi: Int? = null,
+    @SerializedName("ch") val channel: Int? = null
 )
 
 data class LogEntry(

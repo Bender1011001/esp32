@@ -92,8 +92,41 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                         Text("Encryption:", style = MaterialTheme.typography.bodyMedium)
                         Text("${net.encryption}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
+                    
+                    // --- CLIENTS SECTION ---
+                    val clients = ChimeraRepository.wifiClients.filter { 
+                        it.bssid?.equals(net.bssid, ignoreCase = true) == true 
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    Text("Discovered Clients (${clients.size})", style = MaterialTheme.typography.titleSmall, color = RetroGreen)
                     Divider(color = RetroGreen.copy(alpha = 0.3f))
                     
+                    var selectedClientMac by remember { mutableStateOf<String?>(null) }
+                    
+                    if (clients.isEmpty()) {
+                        Text("No clients found yet. Hit SNIFF to discover.", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    } else {
+                        LazyColumn(modifier = Modifier.heightIn(max = 120.dp)) {
+                            items(clients) { client ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedClientMac = if (selectedClientMac == client.sta) null else client.sta }
+                                        .background(if (selectedClientMac == client.sta) RetroGreen.copy(alpha = 0.2f) else Color.Transparent)
+                                        .padding(4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(client.sta ?: "Unknown", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = RetroGreen)
+                                    Text("${client.rssi}dBm", fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Divider(color = RetroGreen.copy(alpha = 0.3f))
+                    
+                    // --- ACTIONS SECTION ---
                     Text("Actions", style = MaterialTheme.typography.titleSmall, color = RetroGreen)
                     
                     // Action Feedback
@@ -103,10 +136,10 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                         Button(
                             onClick = { 
-                                val target = net.bssid ?: net.ssid
+                                val target = selectedClientMac ?: net.bssid ?: net.ssid
                                 // Include channel for proper deauth targeting
                                 usbManager.write("DEAUTH:$target:${net.channel}") 
-                                lastAction = "DEAUTH PACKET SENT!"
+                                lastAction = if (selectedClientMac != null) "DEAUTH CLIENT $target!" else "BROADCAST DEAUTH SENT!"
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f)),
                             modifier = Modifier.weight(1f)
@@ -122,7 +155,7 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                                     usbManager.write("SNIFF_START:${net.channel}")
                                     delay(500) // Allow channel switch
                                     
-                                    val target = net.bssid ?: net.ssid
+                                    val target = selectedClientMac ?: net.bssid ?: net.ssid
                                     if (!target.isNullOrEmpty()) {
                                         // Send deauth bursts - multiple rounds for better success
                                         for (round in 1..3) {
@@ -153,6 +186,23 @@ fun WiFiScreen(usbManager: UsbSerialManager) {
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("SNIFF", color = RetroGreen, fontSize = 10.sp)
+                        }
+                    }
+                    
+                    // Live Signal Feedback (if sniffing active)
+                    val signal = ChimeraRepository.visualizerPulse
+                    if (signal > 0 || lastAction.contains("MONITORING")) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("LIVE SIGNAL:", fontSize = 10.sp, color = RetroGreen, modifier = Modifier.width(70.dp))
+                            LinearProgressIndicator(
+                                progress = { signal / 100f },
+                                modifier = Modifier.weight(1f).height(8.dp),
+                                color = RetroGreen,
+                                trackColor = Color.DarkGray
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("$signal%", fontSize = 10.sp, color = RetroGreen)
                         }
                     }
                     

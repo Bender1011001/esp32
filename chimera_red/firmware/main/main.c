@@ -28,6 +28,7 @@
 #include "driver/spi_master.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_wifi.h" // Required for wifi_ap_record_t and esp_wifi_sta_get_ap_info
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdio.h>
@@ -55,6 +56,10 @@ static void ble_scan_complete_callback(void);
 static ble_device_t g_ble_devices[MAX_BLE_DEVICES];
 static int g_ble_device_count = 0;
 
+// JSON buffer size for BLE scan results
+#define BLE_JSON_BUFFER_SIZE 16384
+#define BLE_JSON_ENTRY_RESERVE 256 // Reserve space per entry
+
 // --- Command Handlers ---
 
 static void cmd_scan_wifi(void) {
@@ -65,15 +70,11 @@ static void cmd_scan_wifi(void) {
 static void cmd_scan_ble(void) {
   gui_log("Scanning BLE...");
   g_ble_device_count = 0;
-  ble_scan_start(ble_scan_callback, ble_scan_complete_callback,
-                 5000); // 5 second scan
+  ble_scan_start(ble_scan_callback, ble_scan_complete_callback, 5000); // 5 second scan
 }
 
-static void cmd_sniff_start(const char *args) {
-  int channel = 0;
-  if (args && *args) {
-    channel = atoi(args);
-  }
+static void cmd_sniff_start(const char *payload) {
+  int channel = (payload && *payload) ? atoi(payload) : 0;
 
   char msg[32];
   if (channel == 0) {
@@ -91,27 +92,28 @@ static void cmd_sniff_stop(void) {
   gui_log("Sniff stopped");
 }
 
-static void cmd_deauth(const char *mac_str) {
-  if (!mac_str || strlen(mac_str) < 17) {
-    serial_send_json("error", "\"Invalid MAC address\"");
+static void cmd_deauth(const char *payload) {
+  if (!payload || strlen(payload) < 17) {
+    serial_send_json("error", "\"Invalid or missing MAC address\"");
     return;
   }
 
-  // Parse MAC and optional channel (format: AA:BB:CC:DD:EE:FF or
-  // AA:BB:CC:DD:EE:FF:CH)
   uint8_t mac[6];
   uint8_t channel = 0;
 
-  // Try to parse MAC:CH format first
-  if (sscanf(mac_str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhu", &mac[0], &mac[1],
-             &mac[2], &mac[3], &mac[4], &mac[5], &channel) < 6) {
+  // Parse MAC (required) and optional channel at the end (AA:BB:CC:DD:EE:FF or AA:BB:CC:DD:EE:FF:CH)
+  int fields = sscanf(payload, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx:%hhu",
+                      &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5], &channel);
+
+  if (fields < 6) {
     serial_send_json("error", "\"Invalid MAC format\"");
     return;
   }
 
+  // If only 6 fields were parsed, channel remains 0 (hopping)
+
   char msg[64];
-  snprintf(msg, sizeof(msg), "DEAUTH %02X:..:%02X ch%d", mac[0], mac[5],
-           channel);
+  snprintf(msg, sizeof(msg), "DEAUTH %02X:..:%02X ch%d", mac[0], mac[5], channel);
   gui_log_color(msg, COLOR_RED);
 
   ESP_LOGI(TAG, "Starting deauth burst: %02X:%02X:%02X:%02X:%02X:%02X ch=%d",
@@ -131,7 +133,9 @@ static void cmd_deauth(const char *mac_str) {
            (ret == ESP_OK) ? "SUCCESS" : "FAILED");
 }
 
-static void cmd_ble_spam(const char *type) {
+static void cmd_ble_spam(const char *payload) {
+  const char *type = (payload && *payload) ? payload : NULL;
+
   char msg[32];
   snprintf(msg, sizeof(msg), "BLE Spam: %s", type ? type : "BENDER");
   gui_log_color(msg, COLOR_ORANGE);
@@ -139,9 +143,14 @@ static void cmd_ble_spam(const char *type) {
   ble_spam_start(type, 50);
 }
 
-static void cmd_set_freq(const char *freq_str) {
-  float freq = atof(freq_str);
-  if (freq > 300 && freq < 950) {
+static void cmd_set_freq(const char *payload) {
+  if (!payload || !*payload) {
+    serial_send_json("error", "\"Missing frequency\"");
+    return;
+  }
+
+  float freq = atof(payload);
+  if (freq > 300.0f && freq < 950.0f) {
     cc1101_set_frequency(freq);
 
     char msg[32];
@@ -164,6 +173,8 @@ static void cmd_subghz_record(void) {
   if (g_replay_buffer) {
     gui_log("Recording Sub-GHz...");
     cc1101_record_start(g_replay_buffer, REPLAY_BUFFER_SIZE);
+  } else {
+    serial_send_json("error", "\"Memory allocation failed\"");
   }
 }
 
@@ -184,15 +195,13 @@ static void cmd_nfc_scan(void) {
     char json[256];
     char uid_str[32] = "";
 
-    for (int i = 0; i < tag.uid_len; i++) {
-      char byte_str[3];
+    for (int i = 0; i < tag.uid_len && i < 10; i++) {
+      char byte_str[4];
       snprintf(byte_str, sizeof(byte_str), "%02X", tag.uid[i]);
-      strcat(uid_str, byte_str);
+      strncat(uid_str, byte_str, sizeof(uid_str) - strlen(uid_str) - 1);
     }
 
-    // Match Android SerialDataHandler: {"type": "nfc_found", "uid": "..."}
-    snprintf(json, sizeof(json), "{\"uid\":\"%s\",\"type\":\"nfc_found\"}",
-             uid_str);
+    snprintf(json, sizeof(json), "{\"uid\":\"%s\",\"type\":\"nfc_found\"}", uid_str);
     serial_send_json_raw(json);
 
     char msg[32];
@@ -209,7 +218,6 @@ static void cmd_get_info(void) {
   uint32_t total_heap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
   uint32_t psram = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
 
-  // Match Android SerialModels: {"type": "sys_info", "chip": "...", ...}
   snprintf(json, sizeof(json),
            "{\"type\":\"sys_info\",\"chip\":\"ESP32-S3\",\"version\":\"%s\","
            "\"free_heap\":%lu,\"total_heap\":%lu,\"psram\":%lu,"
@@ -234,60 +242,102 @@ static void cmd_recon_stop(void) {
   gui_log("Recon stopped");
 }
 
-// --- Serial Command Handler ---
+// --- Status / Heartbeat Task ---
+static void status_task(void *arg) {
+  (void)arg;
 
+  while (1) {
+    vTaskDelay(pdMS_TO_TICKS(5000)); // Every 5 seconds
+
+    uint32_t free_heap = esp_get_free_heap_size();
+    uint32_t min_heap = esp_get_minimum_free_heap_size();
+    int rssi = 0;
+
+    wifi_ap_record_t ap_info;
+    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+      rssi = ap_info.rssi;
+    }
+
+    char json[128];
+    snprintf(json, sizeof(json),
+             "{\"type\":\"sys_status\",\"heap\":%lu,\"min_heap\":%lu,\"rssi\":%d}",
+             (unsigned long)free_heap, (unsigned long)min_heap, rssi);
+    serial_send_json_raw(json);
+  }
+}
+
+// --- Serial Command Handler ---
 static void handle_command(const char *cmd) {
+  if (!cmd || *cmd == '\0') {
+    return;
+  }
+
   ESP_LOGI(TAG, "CMD: %s", cmd);
 
-  // Simple command parsing
-  if (strcmp(cmd, "SCAN_WIFI") == 0) {
+  char cmd_buf[128];
+  strncpy(cmd_buf, cmd, sizeof(cmd_buf) - 1);
+  cmd_buf[sizeof(cmd_buf) - 1] = '\0';
+
+  char *payload = strchr(cmd_buf, ':');
+  char *command = cmd_buf;
+
+  if (payload) {
+    *payload = '\0';
+    payload++;
+  }
+
+  if (strcmp(command, "SCAN_WIFI") == 0) {
     cmd_scan_wifi();
-  } else if (strcmp(cmd, "SCAN_BLE") == 0) {
+  } else if (strcmp(command, "SCAN_BLE") == 0) {
     cmd_scan_ble();
-  } else if (strncmp(cmd, "SNIFF_START", 11) == 0) {
-    const char *args = (cmd[11] == ':') ? cmd + 12 : NULL;
-    cmd_sniff_start(args);
-  } else if (strcmp(cmd, "SNIFF_STOP") == 0) {
+  } else if (strcmp(command, "SNIFF_START") == 0) {
+    cmd_sniff_start(payload);
+  } else if (strcmp(command, "SNIFF_STOP") == 0) {
     cmd_sniff_stop();
-  } else if (strncmp(cmd, "DEAUTH:", 7) == 0) {
-    cmd_deauth(cmd + 7);
-  } else if (strncmp(cmd, "BLE_SPAM", 8) == 0) {
-    const char *type = (cmd[8] == ':') ? cmd + 9 : NULL;
-    cmd_ble_spam(type);
-  } else if (strncmp(cmd, "SET_FREQ:", 9) == 0) {
-    cmd_set_freq(cmd + 9);
-  } else if (strcmp(cmd, "RX_RECORD") == 0) {
+  } else if (strcmp(command, "DEAUTH") == 0) {
+    cmd_deauth(payload);
+  } else if (strcmp(command, "BLE_SPAM") == 0) {
+    cmd_ble_spam(payload);
+  } else if (strcmp(command, "SET_FREQ") == 0) {
+    cmd_set_freq(payload);
+  } else if (strcmp(command, "RX_RECORD") == 0) {
     cmd_subghz_record();
-  } else if (strcmp(cmd, "TX_REPLAY") == 0) {
+  } else if (strcmp(command, "TX_REPLAY") == 0) {
     cmd_subghz_replay();
-  } else if (strcmp(cmd, "NFC_SCAN") == 0) {
+  } else if (strcmp(command, "NFC_SCAN") == 0) {
     cmd_nfc_scan();
-  } else if (strcmp(cmd, "GET_INFO") == 0) {
+  } else if (strcmp(command, "GET_INFO") == 0) {
     cmd_get_info();
-  } else if (strcmp(cmd, "RECON_START") == 0) {
+  } else if (strcmp(command, "RECON_START") == 0) {
     cmd_recon_start();
-  } else if (strcmp(cmd, "RECON_STOP") == 0) {
+  } else if (strcmp(command, "RECON_STOP") == 0) {
     cmd_recon_stop();
-  } else if (strncmp(cmd, "INPUT_", 6) == 0) {
-    // GUI input commands
-    if (strcmp(cmd, "INPUT_UP") == 0)
+  } else if (strcmp(command, "SYS_RESET") == 0) {
+    gui_log("Rebooting...");
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_restart();
+  } else if (strncmp(command, "INPUT_", 6) == 0) {
+    if (strcmp(command, "INPUT_UP") == 0) {
       gui_handle_input(INPUT_UP);
-    else if (strcmp(cmd, "INPUT_DOWN") == 0)
+    } else if (strcmp(command, "INPUT_DOWN") == 0) {
       gui_handle_input(INPUT_DOWN);
-    else if (strcmp(cmd, "INPUT_SELECT") == 0)
+    } else if (strcmp(command, "INPUT_SELECT") == 0) {
       gui_handle_input(INPUT_SELECT);
-    else if (strcmp(cmd, "INPUT_BACK") == 0)
+    } else if (strcmp(command, "INPUT_BACK") == 0) {
       gui_handle_input(INPUT_BACK);
+    }
   } else {
-    ESP_LOGW(TAG, "Unknown command: %s", cmd);
+    ESP_LOGW(TAG, "Unknown command: %s", command);
     serial_send_json("error", "\"Unknown command\"");
   }
 }
 
 // --- Callbacks ---
-
 static void wifi_scan_callback(const wifi_scan_result_t *result) {
-  // Only update GUI here, serial is handled as batch in wifi_manager.c
+  if (!result) {
+    return;
+  }
+
   char msg[64];
   snprintf(msg, sizeof(msg), "AP: %s (%ddBm)",
            result->ssid[0] ? result->ssid : "[HIDDEN]", result->rssi);
@@ -295,13 +345,15 @@ static void wifi_scan_callback(const wifi_scan_result_t *result) {
 }
 
 static void ble_scan_callback(const ble_device_t *device) {
-  // 1. Add to GUI
+  if (!device) {
+    return;
+  }
+
   char msg[64];
   snprintf(msg, sizeof(msg), "BLE: %s (%ddBm)",
            device->has_name ? device->name : "Unknown", device->rssi);
   gui_log(msg);
 
-  // 2. Add to batch for serial
   bool exists = false;
   for (int i = 0; i < g_ble_device_count; i++) {
     if (memcmp(g_ble_devices[i].addr, device->addr, 6) == 0) {
@@ -316,17 +368,22 @@ static void ble_scan_callback(const ble_device_t *device) {
 }
 
 static void ble_scan_complete_callback(void) {
-  // Send batch to Android app
-  // {"type": "ble_scan_result", "count": N, "devices": [...]}
-  char *json = malloc(16384);
-  if (!json)
+  char *json = malloc(BLE_JSON_BUFFER_SIZE);
+  if (!json) {
+    ESP_LOGE(TAG, "Failed to allocate BLE JSON buffer");
     return;
+  }
 
-  int pos = snprintf(json, 16384,
+  int pos = snprintf(json, BLE_JSON_BUFFER_SIZE,
                      "{\"type\":\"ble_scan_result\",\"count\":%d,\"devices\":[",
                      g_ble_device_count);
 
   for (int i = 0; i < g_ble_device_count; i++) {
+    if (pos >= BLE_JSON_BUFFER_SIZE - BLE_JSON_ENTRY_RESERVE) {
+      ESP_LOGW(TAG, "BLE JSON buffer nearly full, truncating at %d devices", i);
+      break;
+    }
+
     char addr_str[18];
     snprintf(addr_str, sizeof(addr_str), "%02X:%02X:%02X:%02X:%02X:%02X",
              g_ble_devices[i].addr[0], g_ble_devices[i].addr[1],
@@ -334,37 +391,47 @@ static void ble_scan_complete_callback(void) {
              g_ble_devices[i].addr[4], g_ble_devices[i].addr[5]);
 
     char escaped_name[65];
-    serial_escape_json(g_ble_devices[i].has_name ? g_ble_devices[i].name
-                                                 : "Unknown",
+    serial_escape_json(g_ble_devices[i].has_name ? g_ble_devices[i].name : "Unknown",
                        escaped_name, sizeof(escaped_name));
 
-    pos += snprintf(json + pos, 16384 - pos,
-                    "{\"name\":\"%s\",\"address\":\"%s\",\"rssi\":%d}%s",
-                    escaped_name, addr_str, g_ble_devices[i].rssi,
-                    (i < g_ble_device_count - 1) ? "," : "");
+    int written = snprintf(json + pos, BLE_JSON_BUFFER_SIZE - pos,
+                           "%s{\"name\":\"%s\",\"address\":\"%s\",\"rssi\":%d}",
+                           (i > 0) ? "," : "",
+                           escaped_name, addr_str, g_ble_devices[i].rssi);
+
+    if (written > 0 && pos + written < BLE_JSON_BUFFER_SIZE) {
+      pos += written;
+    } else {
+      break;
+    }
   }
-  strcat(json, "]}");
+
+  if (pos < BLE_JSON_BUFFER_SIZE - 3) {
+    json[pos++] = ']';
+    json[pos++] = '}';
+    json[pos] = '\0';
+  } else {
+    json[BLE_JSON_BUFFER_SIZE - 3] = ']';
+    json[BLE_JSON_BUFFER_SIZE - 2] = '}';
+    json[BLE_JSON_BUFFER_SIZE - 1] = '\0';
+  }
+
   serial_send_json_raw(json);
   free(json);
 }
 
 // --- Main Entry Point ---
-
 void app_main(void) {
-  // Add a small delay for power stability
   vTaskDelay(pdMS_TO_TICKS(500));
 
   ESP_LOGI(TAG, "=========================================");
-  ESP_LOGI(TAG, "  CHIMERA RED - ESP-IDF Firmware v%s", FIRMWARE_VERSION);
+  ESP_LOGI(TAG, " CHIMERA RED - ESP-IDF Firmware v%s", FIRMWARE_VERSION);
   ESP_LOGI(TAG, "=========================================");
 
-  // Initialize SPI bus (Shared between Display and CC1101)
-  // ST7789: MOSI=7, SCLK=6, CS=15, DC=16, RST=17, BL=21
-  // CC1101: MOSI=7, MISO=13, SCLK=6, CS=10
   spi_bus_config_t bus_cfg = {
-      .mosi_io_num = 7,  // Shared
-      .miso_io_num = 13, // CC1101
-      .sclk_io_num = 6,  // Shared
+      .mosi_io_num = 7,
+      .miso_io_num = 13,
+      .sclk_io_num = 6,
       .quadwp_io_num = -1,
       .quadhd_io_num = -1,
       .max_transfer_sz = 320 * 240 * 2,
@@ -372,80 +439,80 @@ void app_main(void) {
 
   esp_err_t ret = spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "Shared SPI bus init failed: %d", ret);
+    ESP_LOGE(TAG, "Shared SPI bus init failed: %s", esp_err_to_name(ret));
   }
 
-  // Log memory info
-  ESP_LOGI(TAG, "Free heap: %u bytes", (unsigned)esp_get_free_heap_size());
-  ESP_LOGI(TAG, "PSRAM: %u bytes",
-           (unsigned)heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
+  ESP_LOGI(TAG, "Free heap: %lu bytes", (unsigned long)esp_get_free_heap_size());
+  ESP_LOGI(TAG, "PSRAM: %lu bytes",
+           (unsigned long)heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
 
-  // Initialize serial first for debug output
   serial_init();
   serial_set_cmd_handler(handle_command);
   ESP_LOGI(TAG, "Serial initialized");
 
-  // Initialize WiFi manager (critical module)
   ret = wifi_manager_init();
   if (ret == ESP_OK) {
     ESP_LOGI(TAG, "WiFi manager ready");
   } else {
-    ESP_LOGE(TAG, "WiFi init failed: %d", ret);
+    ESP_LOGE(TAG, "WiFi init failed: %s", esp_err_to_name(ret));
   }
 
-  // Initialize BLE
   ret = ble_scanner_init();
   if (ret == ESP_OK) {
     ESP_LOGI(TAG, "BLE scanner ready");
+  } else {
+    ESP_LOGW(TAG, "BLE init failed: %s", esp_err_to_name(ret));
   }
 
-  // Initialize NFC (optional - may not be present)
   ret = pn532_init();
   if (ret == ESP_OK) {
     ESP_LOGI(TAG, "NFC reader ready");
   } else if (ret == ESP_ERR_NOT_FOUND) {
     ESP_LOGW(TAG, "NFC reader not detected");
+  } else {
+    ESP_LOGW(TAG, "NFC init failed: %s", esp_err_to_name(ret));
   }
 
-  // Initialize Sub-GHz (optional - may not be present)
   ret = cc1101_init();
   if (ret == ESP_OK) {
     ESP_LOGI(TAG, "Sub-GHz radio ready");
   } else if (ret == ESP_ERR_NOT_FOUND) {
     ESP_LOGW(TAG, "CC1101 not detected");
+  } else {
+    ESP_LOGW(TAG, "CC1101 init failed: %s", esp_err_to_name(ret));
   }
 
-  // Initialize GUI and display
   ret = gui_init();
   if (ret == ESP_OK) {
     ESP_LOGI(TAG, "GUI initialized");
     gui_log_color("CHIMERA RED", COLOR_RED);
     gui_log("ESP-IDF v" FIRMWARE_VERSION);
     gui_log("System Ready");
+  } else {
+    ESP_LOGE(TAG, "GUI init failed: %s", esp_err_to_name(ret));
   }
 
-  // Initialize buttons
   ret = buttons_init();
   if (ret == ESP_OK) {
     ESP_LOGI(TAG, "Buttons initialized");
+  } else {
+    ESP_LOGW(TAG, "Buttons init failed: %s", esp_err_to_name(ret));
   }
 
-  // Send ready message via serial
   serial_send_json("status", "\"CHIMERA_READY\"");
 
+  BaseType_t task_ret = xTaskCreate(status_task, "status_task", 2048, NULL, 5, NULL);
+  if (task_ret != pdPASS) {
+    ESP_LOGE(TAG, "Failed to create status task");
+  }
+
   ESP_LOGI(TAG, "=========================================");
-  ESP_LOGI(TAG, "  System initialized - entering main loop");
+  ESP_LOGI(TAG, " System initialized - entering main loop");
   ESP_LOGI(TAG, "=========================================");
 
-  // Main loop
   while (1) {
-    // Poll buttons
     buttons_poll();
-
-    // Update GUI
     gui_update();
-
-    // Small delay to prevent WDT and yield CPU
     vTaskDelay(pdMS_TO_TICKS(10));
   }
 }

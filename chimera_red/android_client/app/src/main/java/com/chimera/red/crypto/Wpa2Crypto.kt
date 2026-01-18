@@ -1,141 +1,78 @@
 package com.chimera.red.crypto
 
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import javax.crypto.Mac
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
+import kotlin.experimental.xor
 
 /**
- * WPA2 Handshake Data Container
+ * WPA2 Cryptographic Operations
  * 
- * Holds all cryptographic material extracted from a captured 4-way handshake.
- * This data is required for offline password verification per IEEE 802.11i.
+ * Implements the core cryptographic functions for WPA2-PSK:
+ *   - PMK derivation via PBKDF2-HMAC-SHA1
+ *   - PTK derivation via PRF-384/512
+ *   - MIC calculation via HMAC-MD5 or HMAC-SHA1-128
  * 
- * @property ssid The network name (used as salt for PBKDF2)
- * @property bssid Access Point MAC address (6 bytes as hex string, e.g., "AA:BB:CC:DD:EE:FF")
- * @property staMac Station/Client MAC address (6 bytes as hex string)
- * @property anonce Authenticator Nonce from Message 1 (32 bytes as hex string)
- * @property snonce Supplicant Nonce from Message 2 (32 bytes as hex string)
- * @property mic Message Integrity Code from Message 2 (16 bytes as hex string)
- * @property eapolFrame Complete EAPOL-Key frame from Message 2 (hex string)
- * @property keyDescriptorVersion 1 for HMAC-MD5/RC4, 2 for HMAC-SHA1/AES (WPA2)
- */
-data class WpaHandshake(
-    val ssid: String,
-    val bssid: String,
-    val staMac: String,
-    val anonce: String,
-    val snonce: String,
-    val mic: String,
-    val eapolFrame: String,
-    val keyDescriptorVersion: Int = 2
-) {
-    /**
-     * Validates that this handshake contains all required data for cracking.
-     * @return true if all fields are present and properly sized
-     */
-    fun isValid(): Boolean {
-        return ssid.isNotEmpty() &&
-               bssid.length == 17 &&  // "AA:BB:CC:DD:EE:FF"
-               staMac.length == 17 &&
-               anonce.length == 64 && // 32 bytes = 64 hex chars
-               snonce.length == 64 &&
-               mic.length == 32 &&    // 16 bytes = 32 hex chars
-               eapolFrame.length >= 200 // Minimum EAPOL frame size
-    }
-    
-    companion object {
-        /**
-         * Creates a WpaHandshake from a JSON map (as received from ESP32).
-         */
-        fun fromMap(map: Map<String, Any?>): WpaHandshake? {
-            return try {
-                WpaHandshake(
-                    ssid = map["ssid"] as? String ?: return null,
-                    bssid = map["bssid"] as? String ?: return null,
-                    staMac = map["sta_mac"] as? String ?: return null,
-                    anonce = map["anonce"] as? String ?: return null,
-                    snonce = map["snonce"] as? String ?: return null,
-                    mic = map["mic"] as? String ?: return null,
-                    eapolFrame = map["eapol"] as? String ?: return null,
-                    keyDescriptorVersion = (map["key_version"] as? Number)?.toInt() ?: 2
-                )
-            } catch (e: Exception) {
-                null
-            }
-        }
-    }
-}
-
-/**
- * WPA2 Cryptographic Engine
- * 
- * Implements the complete IEEE 802.11i key derivation and verification algorithms.
- * This is the "real" implementation - no simulation, no shortcuts.
- * 
- * Reference: IEEE 802.11i-2004, Section 8.5
- * 
- * Key Hierarchy:
- *   PSK (Password) → PMK (via PBKDF2) → PTK (via PRF) → KCK, KEK, TK
- *   
- * Verification Flow:
- *   1. Derive PMK from password + SSID using PBKDF2-HMAC-SHA1 (4096 iterations)
- *   2. Derive PTK from PMK + ANonce + SNonce + MAC addresses using PRF
- *   3. Extract KCK (first 16 bytes of PTK)
- *   4. Calculate MIC over EAPOL frame (with MIC field zeroed) using HMAC-SHA1(KCK)
- *   5. Compare calculated MIC with captured MIC
+ * References:
+ *   - IEEE 802.11i-2004
+ *   - RFC 2104 (HMAC)
+ *   - RFC 2898 (PBKDF2)
  */
 object Wpa2Crypto {
     
-    private const val PMK_LENGTH = 32        // 256 bits
-    private const val PTK_LENGTH_CCMP = 48   // 384 bits for AES-CCMP
-    private const val PTK_LENGTH_TKIP = 64   // 512 bits for TKIP
-    private const val KCK_LENGTH = 16        // 128 bits (Key Confirmation Key)
-    private const val MIC_LENGTH = 16        // 128 bits
-    private const val PBKDF2_ITERATIONS = 4096
+    // Key Descriptor Versions (from Key Information field bits 0-2)
+    const val KEY_DESC_VERSION_HMAC_MD5_RC4 = 1   // WPA (TKIP) - HMAC-MD5 for MIC
+    const val KEY_DESC_VERSION_HMAC_SHA1_AES = 2  // WPA2 (CCMP) - HMAC-SHA1-128 for MIC
+    const val KEY_DESC_VERSION_AES_128_CMAC = 3   // 802.11w (PMF) - AES-128-CMAC for MIC
     
-    private val PRF_LABEL = "Pairwise key expansion".toByteArray(Charsets.US_ASCII)
+    // PTK component sizes
+    private const val KCK_SIZE = 16  // Key Confirmation Key
+    private const val KEK_SIZE = 16  // Key Encryption Key
+    private const val TK_SIZE = 16   // Temporal Key (for CCMP), 32 for TKIP
     
     /**
-     * Derives the Pairwise Master Key (PMK) from a password and SSID.
+     * Derives the Pairwise Master Key (PMK) from passphrase and SSID.
      * 
-     * Algorithm: PBKDF2-HMAC-SHA1(password, ssid, 4096, 256)
+     * PMK = PBKDF2(HMAC-SHA1, passphrase, SSID, 4096, 256)
      * 
-     * @param password The candidate password (8-63 ASCII characters for WPA2-Personal)
-     * @param ssid The network SSID (used as salt)
+     * @param passphrase The WiFi password (8-63 ASCII characters)
+     * @param ssid The network SSID (1-32 bytes)
      * @return 32-byte PMK
      */
-    fun derivePMK(password: String, ssid: String): ByteArray {
-        val spec = PBEKeySpec(
-            password.toCharArray(),
-            ssid.toByteArray(Charsets.UTF_8),
-            PBKDF2_ITERATIONS,
-            PMK_LENGTH * 8 // bits
-        )
+    fun derivePMK(passphrase: String, ssid: String): ByteArray {
+        require(passphrase.length in 8..63) { 
+            "WPA2 passphrase must be 8-63 characters, got ${passphrase.length}" 
+        }
+        require(ssid.isNotEmpty() && ssid.length <= 32) { 
+            "SSID must be 1-32 characters, got ${ssid.length}" 
+        }
+        
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
+        val spec = PBEKeySpec(
+            passphrase.toCharArray(),
+            ssid.toByteArray(Charsets.UTF_8),
+            4096,  // iterations
+            256    // key length in bits
+        )
+        
         return factory.generateSecret(spec).encoded
     }
     
     /**
-     * Derives the Pairwise Transient Key (PTK) from the PMK and handshake data.
+     * Derives the Pairwise Transient Key (PTK) from PMK and handshake nonces.
      * 
-     * Algorithm: PRF-384/512(PMK, "Pairwise key expansion", Min(AA,SA) || Max(AA,SA) || Min(ANonce,SNonce) || Max(ANonce,SNonce))
+     * PTK = PRF-X(PMK, "Pairwise key expansion", Min(AA,SA) || Max(AA,SA) || Min(ANonce,SNonce) || Max(ANonce,SNonce))
      * 
-     * The PTK contains:
-     *   - Bytes 0-15:  KCK (Key Confirmation Key) - used for MIC calculation
-     *   - Bytes 16-31: KEK (Key Encryption Key) - used for key wrapping
-     *   - Bytes 32-47: TK  (Temporal Key) - used for data encryption (CCMP)
-     *   - Bytes 48-63: (TKIP only) additional key material
+     * Where X = 384 for CCMP (48 bytes) or 512 for TKIP (64 bytes)
      * 
-     * @param pmk The Pairwise Master Key (32 bytes)
-     * @param apMac Access Point MAC address (6 bytes)
-     * @param staMac Station MAC address (6 bytes)
-     * @param anonce Authenticator Nonce (32 bytes)
-     * @param snonce Supplicant Nonce (32 bytes)
-     * @param useTkip True for TKIP (64-byte PTK), false for CCMP (48-byte PTK)
-     * @return The PTK (48 or 64 bytes)
+     * @param pmk 32-byte Pairwise Master Key
+     * @param apMac 6-byte AP MAC address (Authenticator Address)
+     * @param staMac 6-byte Station MAC address (Supplicant Address)
+     * @param anonce 32-byte Authenticator Nonce (from M1)
+     * @param snonce 32-byte Supplicant Nonce (from M2)
+     * @param ptkLen PTK length in bytes (48 for CCMP, 64 for TKIP)
+     * @return PTK bytes: KCK(16) || KEK(16) || TK(16 or 32)
      */
     fun derivePTK(
         pmk: ByteArray,
@@ -143,226 +80,214 @@ object Wpa2Crypto {
         staMac: ByteArray,
         anonce: ByteArray,
         snonce: ByteArray,
-        useTkip: Boolean = false
+        ptkLen: Int = 48  // Default for CCMP
     ): ByteArray {
-        require(pmk.size == PMK_LENGTH) { "PMK must be 32 bytes" }
+        require(pmk.size == 32) { "PMK must be 32 bytes" }
         require(apMac.size == 6) { "AP MAC must be 6 bytes" }
         require(staMac.size == 6) { "STA MAC must be 6 bytes" }
         require(anonce.size == 32) { "ANonce must be 32 bytes" }
         require(snonce.size == 32) { "SNonce must be 32 bytes" }
         
-        // Sort MAC addresses (lexicographically smaller first)
-        val (minMac, maxMac) = sortByteArrays(apMac, staMac)
+        // Build data: Min(AA,SA) || Max(AA,SA) || Min(ANonce,SNonce) || Max(ANonce,SNonce)
+        val data = ByteArray(6 + 6 + 32 + 32)
         
-        // Sort Nonces (lexicographically smaller first)
-        val (minNonce, maxNonce) = sortByteArrays(anonce, snonce)
+        // Compare MACs lexicographically
+        val (minMac, maxMac) = if (compareBytes(apMac, staMac) < 0) {
+            apMac to staMac
+        } else {
+            staMac to apMac
+        }
         
-        // Build the data input: Label || 0x00 || Min(AA,SA) || Max(AA,SA) || Min(ANonce,SNonce) || Max(ANonce,SNonce)
-        val data = ByteBuffer.allocate(PRF_LABEL.size + 1 + 6 + 6 + 32 + 32)
-            .put(PRF_LABEL)
-            .put(0x00.toByte())  // Null separator per 802.11i spec
-            .put(minMac)
-            .put(maxMac)
-            .put(minNonce)
-            .put(maxNonce)
-            .array()
+        // Compare Nonces lexicographically
+        val (minNonce, maxNonce) = if (compareBytes(anonce, snonce) < 0) {
+            anonce to snonce
+        } else {
+            snonce to anonce
+        }
         
-        val ptkLength = if (useTkip) PTK_LENGTH_TKIP else PTK_LENGTH_CCMP
-        return prf(pmk, data, ptkLength)
+        System.arraycopy(minMac, 0, data, 0, 6)
+        System.arraycopy(maxMac, 0, data, 6, 6)
+        System.arraycopy(minNonce, 0, data, 12, 32)
+        System.arraycopy(maxNonce, 0, data, 44, 32)
+        
+        // PRF-384 or PRF-512
+        return prf(pmk, "Pairwise key expansion", data, ptkLen)
     }
     
     /**
-     * Extracts the Key Confirmation Key (KCK) from the PTK.
-     * The KCK is the first 16 bytes of the PTK.
-     */
-    fun extractKCK(ptk: ByteArray): ByteArray {
-        require(ptk.size >= KCK_LENGTH) { "PTK too short to extract KCK" }
-        return ptk.copyOfRange(0, KCK_LENGTH)
-    }
-    
-    /**
-     * Calculates the Message Integrity Code (MIC) for an EAPOL-Key frame.
+     * Calculates the MIC for an EAPOL-Key frame.
      * 
      * The MIC is calculated over the entire EAPOL frame with the MIC field zeroed.
-     * For WPA2 (Key Descriptor Version 2), HMAC-SHA1 is used.
      * 
-     * @param kck Key Confirmation Key (16 bytes)
-     * @param eapolFrame The complete EAPOL-Key frame
-     * @param micOffset Offset of the MIC field in the EAPOL frame (typically 81)
-     * @param keyDescriptorVersion 1 for MD5, 2 for SHA1
-     * @return The calculated MIC (16 bytes)
+     * @param kck 16-byte Key Confirmation Key (first 16 bytes of PTK)
+     * @param eapolFrame The EAPOL frame with MIC field already zeroed
+     * @param keyDescVersion Key Descriptor Version (1=MD5, 2=SHA1, 3=AES-CMAC)
+     * @return 16-byte MIC
      */
     fun calculateMIC(
         kck: ByteArray,
         eapolFrame: ByteArray,
-        micOffset: Int = 81,
-        keyDescriptorVersion: Int = 2
+        keyDescVersion: Int
     ): ByteArray {
-        require(kck.size == KCK_LENGTH) { "KCK must be 16 bytes" }
-        require(eapolFrame.size > micOffset + MIC_LENGTH) { "EAPOL frame too short" }
+        require(kck.size == 16) { "KCK must be 16 bytes" }
         
-        // Create a copy with the MIC field zeroed
-        val zeroedFrame = eapolFrame.copyOf()
-        for (i in micOffset until micOffset + MIC_LENGTH) {
-            zeroedFrame[i] = 0x00
+        val mic = when (keyDescVersion) {
+            KEY_DESC_VERSION_HMAC_MD5_RC4 -> {
+                // WPA (TKIP): HMAC-MD5
+                hmac("HmacMD5", kck, eapolFrame)
+            }
+            KEY_DESC_VERSION_HMAC_SHA1_AES -> {
+                // WPA2 (CCMP): HMAC-SHA1, truncated to 128 bits
+                val fullHmac = hmac("HmacSHA1", kck, eapolFrame)
+                fullHmac.copyOfRange(0, 16)
+            }
+            KEY_DESC_VERSION_AES_128_CMAC -> {
+                // 802.11w (PMF): AES-128-CMAC
+                aesCmac(kck, eapolFrame)
+            }
+            else -> {
+                throw IllegalArgumentException("Unknown key descriptor version: $keyDescVersion")
+            }
         }
         
-        // Calculate HMAC based on key descriptor version
-        val hmac = when (keyDescriptorVersion) {
-            1 -> hmacMd5(kck, zeroedFrame)
-            2 -> hmacSha1(kck, zeroedFrame)
-            else -> throw IllegalArgumentException("Unsupported key descriptor version: $keyDescriptorVersion")
-        }
-        
-        // Return first 16 bytes (MIC is always 128 bits regardless of hash)
-        return hmac.copyOfRange(0, MIC_LENGTH)
+        return mic
     }
     
     /**
-     * Verifies a WPA2 handshake with a candidate password.
+     * PRF (Pseudo-Random Function) as defined in IEEE 802.11i.
      * 
-     * This is the main entry point for password verification.
-     * Returns true if the password is correct.
+     * PRF-X(K, A, B) = L(HMAC-SHA1(K, A || 0x00 || B || i), 0, X)
      * 
-     * @param password The candidate password to test
-     * @param handshake The captured handshake data
-     * @return true if the password is correct, false otherwise
+     * Where i iterates from 0 until enough bits are generated.
      */
-    fun verifyPassword(password: String, handshake: WpaHandshake): Boolean {
-        return try {
-            // 1. Derive PMK from password
-            val pmk = derivePMK(password, handshake.ssid)
-            
-            // 2. Parse MAC addresses and nonces from hex
-            val apMac = hexToBytes(handshake.bssid.replace(":", ""))
-            val staMac = hexToBytes(handshake.staMac.replace(":", ""))
-            val anonce = hexToBytes(handshake.anonce)
-            val snonce = hexToBytes(handshake.snonce)
-            val eapolFrame = hexToBytes(handshake.eapolFrame)
-            val originalMic = hexToBytes(handshake.mic)
-            
-            // 3. Derive PTK
-            val ptk = derivePTK(pmk, apMac, staMac, anonce, snonce)
-            
-            // 4. Extract KCK
-            val kck = extractKCK(ptk)
-            
-            // 5. Find MIC offset in EAPOL frame
-            val micOffset = findMicOffset(eapolFrame)
-            
-            // 6. Calculate MIC
-            val calculatedMic = calculateMIC(kck, eapolFrame, micOffset, handshake.keyDescriptorVersion)
-            
-            // 7. Compare MICs (constant-time comparison to prevent timing attacks)
-            constantTimeEquals(calculatedMic, originalMic)
-        } catch (e: Exception) {
-            // Any parsing or crypto error means verification failed
-            false
-        }
-    }
-    
-    // ======================== Private Helper Functions ========================
-    
-    /**
-     * Pseudo-Random Function (PRF) as defined in IEEE 802.11i.
-     * Uses HMAC-SHA1 in counter mode to generate arbitrary-length key material.
-     */
-    private fun prf(key: ByteArray, data: ByteArray, length: Int): ByteArray {
-        val result = ByteBuffer.allocate(length)
-        var counter = 0
+    private fun prf(key: ByteArray, label: String, data: ByteArray, length: Int): ByteArray {
+        val labelBytes = label.toByteArray(Charsets.US_ASCII)
+        val result = ByteArray(length)
+        var resultOffset = 0
+        var counter: Byte = 0
         
-        while (result.position() < length) {
-            // Build input: data || counter (1 byte)
-            val input = ByteBuffer.allocate(data.size + 1)
-                .put(data)
-                .put(counter.toByte())
-                .array()
+        // Input to HMAC: label || 0x00 || data || counter
+        val input = ByteArray(labelBytes.size + 1 + data.size + 1)
+        System.arraycopy(labelBytes, 0, input, 0, labelBytes.size)
+        input[labelBytes.size] = 0x00
+        System.arraycopy(data, 0, input, labelBytes.size + 1, data.size)
+        
+        while (resultOffset < length) {
+            input[input.size - 1] = counter
             
-            val hash = hmacSha1(key, input)
-            val remaining = length - result.position()
-            result.put(hash, 0, minOf(hash.size, remaining))
+            val hmacResult = hmac("HmacSHA1", key, input)
+            
+            val toCopy = minOf(hmacResult.size, length - resultOffset)
+            System.arraycopy(hmacResult, 0, result, resultOffset, toCopy)
+            
+            resultOffset += toCopy
             counter++
         }
         
-        return result.array()
+        return result
     }
     
     /**
-     * HMAC-SHA1 implementation using Java's standard crypto library.
+     * Generic HMAC computation.
      */
-    private fun hmacSha1(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacSHA1")
-        mac.init(SecretKeySpec(key, "HmacSHA1"))
+    private fun hmac(algorithm: String, key: ByteArray, data: ByteArray): ByteArray {
+        val mac = Mac.getInstance(algorithm)
+        mac.init(SecretKeySpec(key, algorithm))
         return mac.doFinal(data)
     }
     
     /**
-     * HMAC-MD5 implementation for legacy WPA (Key Descriptor Version 1).
+     * AES-128-CMAC as defined in RFC 4493.
+     * 
+     * Used for 802.11w (PMF) MIC calculation.
      */
-    private fun hmacMd5(key: ByteArray, data: ByteArray): ByteArray {
-        val mac = Mac.getInstance("HmacMD5")
-        mac.init(SecretKeySpec(key, "HmacMD5"))
-        return mac.doFinal(data)
-    }
-    
-    /**
-     * Sorts two byte arrays lexicographically.
-     * @return Pair of (smaller, larger)
-     */
-    private fun sortByteArrays(a: ByteArray, b: ByteArray): Pair<ByteArray, ByteArray> {
-        for (i in a.indices) {
-            val ua = a[i].toInt() and 0xFF
-            val ub = b[i].toInt() and 0xFF
-            if (ua != ub) {
-                return if (ua < ub) Pair(a, b) else Pair(b, a)
+    private fun aesCmac(key: ByteArray, data: ByteArray): ByteArray {
+        // For simplicity, we'll use a pure Kotlin implementation
+        // In production, consider using Bouncy Castle or native implementation
+        
+        val cipher = javax.crypto.Cipher.getInstance("AES/ECB/NoPadding")
+        val keySpec = SecretKeySpec(key, "AES")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, keySpec)
+        
+        // Generate subkeys K1 and K2
+        val zero = ByteArray(16)
+        val l = cipher.doFinal(zero)
+        val k1 = generateSubkey(l)
+        val k2 = generateSubkey(k1)
+        
+        // Number of blocks
+        val n = if (data.isEmpty()) 1 else (data.size + 15) / 16
+        val flag = data.isNotEmpty() && (data.size % 16 == 0)
+        
+        // Prepare last block
+        val lastBlock = ByteArray(16)
+        val lastBlockStart = (n - 1) * 16
+        
+        if (flag) {
+            // Complete block - XOR with K1
+            for (i in 0 until 16) {
+                lastBlock[i] = (data[lastBlockStart + i] xor k1[i])
+            }
+        } else {
+            // Incomplete block - pad and XOR with K2
+            val remaining = data.size - lastBlockStart
+            for (i in 0 until 16) {
+                lastBlock[i] = when {
+                    i < remaining -> (data[lastBlockStart + i] xor k2[i])
+                    i == remaining -> (0x80.toByte() xor k2[i])
+                    else -> (0x00.toByte() xor k2[i])
+                }
             }
         }
-        return Pair(a, b) // Equal
-    }
-    
-    /**
-     * Converts a hex string to a byte array.
-     */
-    private fun hexToBytes(hex: String): ByteArray {
-        val cleanHex = hex.replace(":", "").replace(" ", "")
-        require(cleanHex.length % 2 == 0) { "Hex string must have even length" }
-        return ByteArray(cleanHex.length / 2) { i ->
-            cleanHex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        
+        // CBC-MAC
+        var x = ByteArray(16)
+        for (i in 0 until n - 1) {
+            val block = data.copyOfRange(i * 16, (i + 1) * 16)
+            for (j in 0 until 16) {
+                x[j] = (x[j] xor block[j])
+            }
+            x = cipher.doFinal(x)
         }
+        
+        // Final block
+        for (j in 0 until 16) {
+            x[j] = (x[j] xor lastBlock[j])
+        }
+        
+        return cipher.doFinal(x)
     }
     
     /**
-     * Finds the MIC offset in an EAPOL-Key frame.
-     * 
-     * Standard EAPOL-Key frame structure:
-     *   - EAPOL Header (4 bytes): Version(1) + Type(1) + Length(2)
-     *   - Key Descriptor Type (1 byte)
-     *   - Key Information (2 bytes)
-     *   - Key Length (2 bytes)
-     *   - Key Replay Counter (8 bytes)
-     *   - Key Nonce (32 bytes)
-     *   - Key IV (16 bytes)
-     *   - Key RSC (8 bytes)
-     *   - Key ID (8 bytes)
-     *   - Key MIC (16 bytes) <-- Offset 81
-     *   - Key Data Length (2 bytes)
-     *   - Key Data (variable)
+     * Generate CMAC subkey by left-shifting and conditional XOR.
      */
-    private fun findMicOffset(eapolFrame: ByteArray): Int {
-        // Standard offset for 802.11i EAPOL-Key frame
-        // 4 (EAPOL header) + 1 (type) + 2 (info) + 2 (len) + 8 (replay) + 32 (nonce) + 16 (iv) + 8 (rsc) + 8 (id) = 81
-        return 81
+    private fun generateSubkey(key: ByteArray): ByteArray {
+        val result = ByteArray(16)
+        var carry = 0
+        
+        // Left shift by 1
+        for (i in 15 downTo 0) {
+            val b = key[i].toInt() and 0xFF
+            result[i] = ((b shl 1) or carry).toByte()
+            carry = (b shr 7) and 1
+        }
+        
+        // If MSB was 1, XOR with Rb (0x87 for AES-128)
+        if ((key[0].toInt() and 0x80) != 0) {
+            result[15] = (result[15].toInt() xor 0x87).toByte()
+        }
+        
+        return result
     }
     
     /**
-     * Constant-time byte array comparison to prevent timing attacks.
+     * Lexicographic comparison of byte arrays.
      */
-    private fun constantTimeEquals(a: ByteArray, b: ByteArray): Boolean {
-        if (a.size != b.size) return false
-        var result = 0
+    private fun compareBytes(a: ByteArray, b: ByteArray): Int {
         for (i in a.indices) {
-            result = result or (a[i].toInt() xor b[i].toInt())
+            val cmp = (a[i].toInt() and 0xFF) - (b[i].toInt() and 0xFF)
+            if (cmp != 0) return cmp
         }
-        return result == 0
+        return 0
     }
 }

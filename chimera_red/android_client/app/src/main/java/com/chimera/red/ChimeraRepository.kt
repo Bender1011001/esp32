@@ -3,7 +3,9 @@ package com.chimera.red
 import androidx.compose.runtime.mutableStateListOf
 import com.chimera.red.models.BleDevice
 import com.chimera.red.models.WifiNetwork
+import com.chimera.red.models.WifiClient
 import com.chimera.red.models.LogEntry
+import com.chimera.red.models.SerialMessage
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -18,123 +20,118 @@ import com.chimera.red.data.*
 // Simple singleton repository to hold state across tab switches
 // avoiding the need for complex database/ViewModel setup for this MVP.
 object ChimeraRepository {
-    // -- Database --
+    @Volatile
     private var db: ChimeraDatabase? = null
     private var dao: ChimeraDao? = null
     private val repoScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun initialize(context: Context) {
-        if (db == null) {
-            db = ChimeraDatabase.getDatabase(context)
-            dao = db!!.dao()
-            
-            // Start observing DB flows and updating state
-            observeDatabase()
-        }
-    }
-
-    private fun observeDatabase() {
-        repoScope.launch {
-            // Logs
-            dao?.getAllLogs()?.collect { entities ->
-                val models = entities.map { LogEntry(it.message, it.timestamp) }
-                withContext(Dispatchers.Main) {
-                    _terminalLogs.clear()
-                    _terminalLogs.addAll(models)
+        val checkDb = db
+        if (checkDb == null) {
+            synchronized(this) {
+                if (db == null) {
+                    db = ChimeraDatabase.getDatabase(context)
+                    dao = db!!.dao()
+                    
+                    // Start observing DB flows and updating state
+                    observeDatabase()
                 }
             }
         }
-        
+    }
+
+    // In-memory state
+    private val _wifiClients = mutableStateListOf<WifiClient>()
+    val wifiClients: List<WifiClient> get() = _wifiClients
+
+    private val _analyzerData = mutableStateListOf<Int>()
+    val analyzerData: List<Int> get() = _analyzerData
+
+    // Location (Memory only for now)
+    var hasLocation by mutableStateOf(false)
+    var currentLat by mutableStateOf(0.0)
+    var currentLon by mutableStateOf(0.0)
+
+    // Exposed flows from DB
+    val wifiNetworks = mutableStateListOf<WifiNetwork>()
+    val bleDevices = mutableStateListOf<BleDevice>()
+    val captures = mutableStateListOf<CaptureEntity>()
+    val terminalLogs = mutableStateListOf<LogEntry>()
+    
+    // System Info & Visualizer
+    var systemInfo by mutableStateOf(SerialMessage())
+    var visualizerPulse by mutableStateOf(0)
+    var sniffPacketCount by mutableStateOf(0L)
+    
+    // Last update timestamps
+    var lastWifiUpdate by mutableStateOf(0L)
+    var lastBleUpdate by mutableStateOf(0L)
+
+    private fun observeDatabase() {
+        // Observe Networks
         repoScope.launch {
-            // Networks
-            dao?.getAllNetworks()?.collect { entities ->
-                val models = entities.map { 
-                    WifiNetwork(
-                        ssid = it.ssid,
-                        bssid = it.bssid,
-                        rssi = it.rssi,
-                        channel = it.channel,
-                        encryption = it.encryption,
-                        lat = it.lat,
-                        lon = it.lon
-                    ) 
-                }
+            db?.dao()?.getAllNetworks()?.collect { entities ->
                 withContext(Dispatchers.Main) {
-                    _wifiNetworks.clear()
-                    _wifiNetworks.addAll(models)
+                    wifiNetworks.clear()
+                    wifiNetworks.addAll(entities.map { it.toDomain() })
                     lastWifiUpdate = System.currentTimeMillis()
                 }
             }
         }
         
+        // Observe BLE
         repoScope.launch {
-            // BLE
-            dao?.getAllBleDevices()?.collect { entities ->
-                val models = entities.map { 
-                    BleDevice(
-                        name = it.name,
-                        address = it.address,
-                        rssi = it.rssi,
-                        lat = it.lat,
-                        lon = it.lon
-                    ) 
-                }
+            db?.dao()?.getAllBleDevices()?.collect { entities ->
                 withContext(Dispatchers.Main) {
-                    _bleDevices.clear()
-                    _bleDevices.addAll(models)
+                    bleDevices.clear()
+                    bleDevices.addAll(entities.map { it.toDomain() })
                     lastBleUpdate = System.currentTimeMillis()
                 }
             }
         }
-
+        
+        // Observe Captures
         repoScope.launch {
-            // Captures
-            dao?.getAllCaptures()?.collect { entities ->
+            db?.dao()?.getAllCaptures()?.collect { entities ->
                 withContext(Dispatchers.Main) {
-                    _captures.clear()
-                    _captures.addAll(entities)
+                    captures.clear()
+                    captures.addAll(entities)
+                }
+            }
+        }
+
+        // Observe Logs
+        repoScope.launch {
+            db?.dao()?.getAllLogs()?.collect { entities ->
+                val recent = entities.takeLast(100) // Manual limit if query unimplemented
+                withContext(Dispatchers.Main) {
+                    terminalLogs.clear()
+                    terminalLogs.addAll(recent.map { it.toDomain() })
                 }
             }
         }
     }
 
-    // -- State (UI Observes this) --
-    private val _wifiNetworks = mutableStateListOf<WifiNetwork>()
-    val wifiNetworks: List<WifiNetwork> = _wifiNetworks
-    
-    var lastWifiUpdate by mutableStateOf(0L)
-    
-    // BLE Devices
-    private val _bleDevices = mutableStateListOf<BleDevice>()
-    val bleDevices: List<BleDevice> = _bleDevices
-    
-    var lastBleUpdate by mutableStateOf(0L)
-
-    // Captures
-    private val _captures = mutableStateListOf<CaptureEntity>()
-    val captures: List<CaptureEntity> = _captures
-    
-    // Location
-    var currentLat by mutableStateOf(0.0)
-    var currentLon by mutableStateOf(0.0)
-    var hasLocation by mutableStateOf(false)
-    
-    fun updateLocation(lat: Double, lon: Double) {
-        currentLat = lat
-        currentLon = lon
-        hasLocation = true
+    fun addClient(client: WifiClient) {
+        repoScope.launch(Dispatchers.Main) {
+            if (!_wifiClients.any { it.sta == client.sta && it.bssid == client.bssid }) {
+                _wifiClients.add(client)
+            }
+        }
     }
     
-    // Logic Analyzer Data (Keep in memory for performance, high freq)
-    private val _analyzerData = mutableStateListOf<Int>()
-    val analyzerData: List<Int> = _analyzerData
-
-    // Terminal Logs
-    private val _terminalLogs = mutableStateListOf<LogEntry>()
-    val terminalLogs: List<LogEntry> = _terminalLogs
+    fun getClientsForAP(bssid: String): List<WifiClient> {
+        return _wifiClients.filter { it.bssid?.equals(bssid, ignoreCase = true) == true }
+    }
+    
+    fun clearClients() {
+        repoScope.launch(Dispatchers.Main) {
+            _wifiClients.clear()
+        }
+    }
     
     fun updateNetworks(newNetworks: List<WifiNetwork>) {
-        if (newNetworks.isEmpty()) return // Don't clear DB on empty scan, only insert found
+        if (newNetworks.isEmpty()) return
         
         repoScope.launch {
             val entities = newNetworks
@@ -149,7 +146,7 @@ object ChimeraRepository {
                         lon = if (hasLocation) currentLon else null
                     )
                 }
-                .filter { it.bssid != "UNKNOWN_BSSID" } // Final safety check
+                .filter { it.bssid != "UNKNOWN_BSSID" }
                 
             if (entities.isNotEmpty()) {
                 dao?.insertNetworks(entities)
@@ -198,15 +195,19 @@ object ChimeraRepository {
     }
     
     fun appendAnalyzerData(pulses: List<Int>) {
-        _analyzerData.addAll(pulses)
-        // Keep last 1000
-        if (_analyzerData.size > 1000) {
-            _analyzerData.removeRange(0, _analyzerData.size - 1000)
+        repoScope.launch(Dispatchers.Main) {
+            _analyzerData.addAll(pulses)
+            // Keep last 1000
+            if (_analyzerData.size > 1000) {
+                _analyzerData.removeRange(0, _analyzerData.size - 1000)
+            }
         }
     }
     
     fun clearAnalyzer() {
-        _analyzerData.clear()
+        repoScope.launch(Dispatchers.Main) {
+            _analyzerData.clear()
+        }
     }
 
     fun addLog(msg: String) {
@@ -225,5 +226,11 @@ object ChimeraRepository {
         repoScope.launch {
             dao?.clearNetworks()
         }
+    }
+
+    fun updateLocation(lat: Double, lon: Double) {
+        hasLocation = true
+        currentLat = lat
+        currentLon = lon
     }
 }

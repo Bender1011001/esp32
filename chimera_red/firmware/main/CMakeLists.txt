@@ -19,4 +19,8 @@ idf_component_register(
         bt
         esp_timer
         spi_flash
+        esp_netif
+        esp_common
+        freertos
+        log
 )
